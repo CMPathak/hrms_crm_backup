@@ -47,8 +47,8 @@ class ClientPortalController extends Controller
             if ($customer) {
                 $projects = Project::where('customer_id', $customer->id)
                     ->select([
-                        'id', 'custom_project_id', 'customer_id', 'project_name', 'service_type',
-                        'package', 'description', 'status', 'workflow_stage', 'start_date', 'due_date',
+                        'id', 'custom_project_id', 'customer_id', 'project_name',
+                        'description', 'status', 'workflow_stage', 'start_date', 'due_date',
                         'dev_completion_pct', 'design_banner', 'design_logo', 'design_ui', 'design_client_approval'
                     ])
                     ->get();
@@ -201,8 +201,7 @@ class ClientPortalController extends Controller
                     'custom_project_id' => 'PRJ-' . ($maxProjId + 101),
                     'customer_id' => $customer->id,
                     'project_name' => $request->project_name,
-                    'service_type' => 'Web Development',
-                    'package' => 'Standard',
+
                     'description' => 'Initial onboarding project for ' . $request->company_name,
                     'start_date' => now()->toDateString(),
                     'due_date' => now()->addMonth()->toDateString(),

@@ -21,11 +21,29 @@ class DashboardController extends Controller
             return redirect()->route('client-portal.index');
         }
 
-        $metricProjects = Project::query()
-            ->select(['id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel'])
-            ->get();
+        $metricQuery = Project::query()
+            ->select(['id', 'customer_id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel']);
 
-        $customerCount = Customer::count();
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $metricQuery->where(function ($q) use ($currentUser) {
+                $q->where('developer', $currentUser->name)
+                  ->orWhere('seo_person', $currentUser->name)
+                  ->orWhere('sales_person_name', $currentUser->name)
+                  ->orWhereHas('assignment', function ($aq) use ($currentUser) {
+                      $aq->where('developer_id', $currentUser->id)
+                         ->orWhere('seo_executive_id', $currentUser->id)
+                         ->orWhere('designer_id', $currentUser->id);
+                  });
+            });
+        }
+        
+        $metricProjects = $metricQuery->get();
+
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $customerCount = $metricProjects->pluck('customer_id')->unique()->count();
+        } else {
+            $customerCount = Customer::count();
+        }
         $holdCount = 0;
         $completedCount = 0;
         $closedCount = 0;
@@ -111,94 +129,155 @@ class DashboardController extends Controller
         ];
 
         // Developer Team Projects
-        $devProjects = DB::table('projects as p')
+        $devQuery = DB::table('projects as p')
             ->join('customers as c', 'p.customer_id', '=', 'c.id')
             ->leftJoin('project_assignments as pa', 'p.id', '=', 'pa.project_id')
             ->leftJoin('users as u_dev', 'pa.developer_id', '=', 'u_dev.id')
             ->leftJoin('domains_hosting as dh', 'p.id', '=', 'dh.project_id')
             ->select([
-                'p.id', 'p.project_name', 'p.custom_project_id', 'p.service_type', 'p.status',
+                'p.id', 'p.project_name', 'p.custom_project_id', 'p.status',
                 'c.company_name', 'c.client_name',
                 'pa.dev_status', 'pa.dev_completion_pct',
                 'u_dev.name as dev_name',
                 'dh.domain_name'
             ])
             ->where(function ($q) {
-                $q->whereNotNull('pa.developer_id')
-                  ->orWhere('p.service_type', 'like', '%web%')
-                  ->orWhere('p.service_type', 'like', '%dev%')
-                  ->orWhere('p.service_type', 'like', '%site%');
-            })
-            ->orderBy('p.id', 'desc')
-            ->limit(15)
-            ->get();
+                $q->whereNotNull('pa.developer_id');
+            });
+
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $devQuery->where(function ($q) use ($currentUser) {
+                $q->where('p.developer', $currentUser->name)
+                  ->orWhere('p.seo_person', $currentUser->name)
+                  ->orWhere('p.sales_person_name', $currentUser->name)
+                  ->orWhere('pa.developer_id', $currentUser->id)
+                  ->orWhere('pa.seo_executive_id', $currentUser->id)
+                  ->orWhere('pa.designer_id', $currentUser->id);
+            });
+        }
+        
+        $devProjects = $devQuery->orderBy('p.id', 'desc')->limit(15)->get();
 
         // SEO Team Projects
-        $seoProjects = DB::table('projects as p')
+        $seoQuery = DB::table('projects as p')
             ->join('customers as c', 'p.customer_id', '=', 'c.id')
             ->leftJoin('project_assignments as pa', 'p.id', '=', 'pa.project_id')
             ->leftJoin('users as u_seo', 'pa.seo_executive_id', '=', 'u_seo.id')
             ->leftJoin('domains_hosting as dh', 'p.id', '=', 'dh.project_id')
             ->select([
-                'p.id', 'p.project_name', 'p.custom_project_id', 'p.service_type', 'p.status', 'p.total_keyword', 'p.gmb_access_desc', 'p.workflow_stage',
+                'p.id', 'p.project_name', 'p.custom_project_id', 'p.status', 'p.total_keyword', 'p.gmb_access_desc', 'p.workflow_stage',
                 'c.company_name', 'c.client_name',
                 'u_seo.name as seo_name',
                 'dh.domain_name'
             ])
             ->where(function ($q) {
                 $q->whereNotNull('pa.seo_executive_id')
-                  ->orWhere('p.total_keyword', '>', 0)
-                  ->orWhere('p.service_type', 'like', '%seo%')
-                  ->orWhere('p.service_type', 'like', '%gmb%')
-                  ->orWhere('p.service_type', 'like', '%gmp%');
-            })
-            ->orderBy('p.id', 'desc')
-            ->limit(15)
-            ->get();
+                  ->orWhere('p.total_keyword', '>', 0);
+            });
+
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $seoQuery->where(function ($q) use ($currentUser) {
+                $q->where('p.developer', $currentUser->name)
+                  ->orWhere('p.seo_person', $currentUser->name)
+                  ->orWhere('p.sales_person_name', $currentUser->name)
+                  ->orWhere('pa.developer_id', $currentUser->id)
+                  ->orWhere('pa.seo_executive_id', $currentUser->id)
+                  ->orWhere('pa.designer_id', $currentUser->id);
+            });
+        }
+        
+        $seoProjects = $seoQuery->orderBy('p.id', 'desc')->limit(15)->get();
 
         // Sales Team Projects
-        $salesProjects = DB::table('projects as p')
+        $salesQuery = DB::table('projects as p')
             ->join('customers as c', 'p.customer_id', '=', 'c.id')
             ->leftJoin('domains_hosting as dh', 'p.id', '=', 'dh.project_id')
+            ->leftJoin('project_assignments as pa', 'p.id', '=', 'pa.project_id')
             ->select([
-                'p.id', 'p.project_name', 'p.custom_project_id', 'p.package', 'p.sales_person_name', 'p.payment_info', 'p.status',
+                'p.id', 'p.project_name', 'p.custom_project_id', 'p.sales_person_name', 'p.payment_info', 'p.status',
                 'c.company_name', 'c.client_name', 'c.mobile as client_phone',
                 'dh.domain_name'
             ])
             ->where(function ($q) {
                 $q->whereNotNull('p.sales_person_name')
-                  ->where('p.sales_person_name', '!=', '')
-                  ->orWhere(function ($sub) {
-                      $sub->whereNotNull('p.package')->where('p.package', '!=', '');
-                  });
-            })
-            ->orderBy('p.id', 'desc')
-            ->limit(15)
-            ->get();
+                  ->where('p.sales_person_name', '!=', '');
+            });
+
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $salesQuery->where(function ($q) use ($currentUser) {
+                $q->where('p.developer', $currentUser->name)
+                  ->orWhere('p.seo_person', $currentUser->name)
+                  ->orWhere('p.sales_person_name', $currentUser->name)
+                  ->orWhere('pa.developer_id', $currentUser->id)
+                  ->orWhere('pa.seo_executive_id', $currentUser->id)
+                  ->orWhere('pa.designer_id', $currentUser->id);
+            });
+        }
+        
+        $salesProjects = $salesQuery->orderBy('p.id', 'desc')->limit(15)->get();
 
         // Expiring Domains in Next 30 Days
         $today = Carbon::today()->toDateString();
         $thirtyDays = Carbon::today()->addDays(30)->toDateString();
-        $expiringDomains = DB::table('domains_hosting as dh')
+        $domainsQuery = DB::table('domains_hosting as dh')
             ->join('customers as c', 'dh.customer_id', '=', 'c.id')
+            ->leftJoin('projects as p', 'dh.project_id', '=', 'p.id')
+            ->leftJoin('project_assignments as pa', 'p.id', '=', 'pa.project_id')
             ->select([
                 'dh.id', 'dh.domain_name', 'dh.domain_expiry_date',
                 'c.company_name', 'c.client_name'
             ])
-            ->whereBetween('dh.domain_expiry_date', [$today, $thirtyDays])
-            ->orderBy('dh.domain_expiry_date', 'asc')
-            ->limit(10)
-            ->get();
+            ->whereBetween('dh.domain_expiry_date', [$today, $thirtyDays]);
 
-        $recentProjects = Project::with('customer')
-            ->orderBy('id', 'desc')
-            ->limit(10)
-            ->get();
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $domainsQuery->where(function ($q) use ($currentUser) {
+                $q->where('p.developer', $currentUser->name)
+                  ->orWhere('p.seo_person', $currentUser->name)
+                  ->orWhere('p.sales_person_name', $currentUser->name)
+                  ->orWhere('pa.developer_id', $currentUser->id)
+                  ->orWhere('pa.seo_executive_id', $currentUser->id)
+                  ->orWhere('pa.designer_id', $currentUser->id);
+            });
+        }
 
-        $recentTasks = Task::with(['project', 'assignee'])
-            ->orderBy('id', 'desc')
-            ->limit(8)
-            ->get();
+        $expiringDomains = $domainsQuery->orderBy('dh.domain_expiry_date', 'asc')->limit(10)->get();
+
+        $recentQuery = Project::with('customer')->orderBy('id', 'desc');
+        
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $recentQuery->where(function ($q) use ($currentUser) {
+                $q->where('developer', $currentUser->name)
+                  ->orWhere('seo_person', $currentUser->name)
+                  ->orWhere('sales_person_name', $currentUser->name)
+                  ->orWhereHas('assignment', function ($aq) use ($currentUser) {
+                      $aq->where('developer_id', $currentUser->id)
+                         ->orWhere('seo_executive_id', $currentUser->id)
+                         ->orWhere('designer_id', $currentUser->id);
+                  });
+            });
+        }
+        
+        $recentProjects = $recentQuery->limit(10)->get();
+
+        $recentTaskQuery = Task::with(['project', 'assignee'])->orderBy('id', 'desc');
+        
+        if ($currentUser && !$currentUser->isAdmin()) {
+            $recentTaskQuery->where(function ($q) use ($currentUser) {
+                $q->where('assigned_to', $currentUser->id)
+                  ->orWhereHas('project', function ($pq) use ($currentUser) {
+                      $pq->where('developer', $currentUser->name)
+                         ->orWhere('seo_person', $currentUser->name)
+                         ->orWhere('sales_person_name', $currentUser->name)
+                         ->orWhereHas('assignment', function ($aq) use ($currentUser) {
+                             $aq->where('developer_id', $currentUser->id)
+                                ->orWhere('seo_executive_id', $currentUser->id)
+                                ->orWhere('designer_id', $currentUser->id);
+                         });
+                  });
+            });
+        }
+        
+        $recentTasks = $recentTaskQuery->limit(8)->get();
 
         $currentUserRole = $request->user()->role?->role_name ?? 'super_admin';
 

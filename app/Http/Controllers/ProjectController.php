@@ -235,8 +235,7 @@ class ProjectController extends Controller
             'business_category' => 'nullable|string|max:100',
             'address' => 'nullable|string',
             'project_name' => 'required|string|max:150',
-            'service_type' => 'required|string|max:100',
-            'package' => 'required|string|max:100',
+
             'package_tier' => 'nullable|string|max:100',
             'start_date' => 'required|date',
             'due_date' => 'required|date',
@@ -260,6 +259,7 @@ class ProjectController extends Controller
             'total_report' => 'nullable|string',
             'adword_sponser' => 'nullable|string',
             'analytics_webmaster_email' => 'nullable|string|max:150',
+            'design_status' => 'nullable|string',
             'product_details' => 'nullable|string',
             'ftp_login_details' => 'nullable|string',
             'social_media_login' => 'nullable|string',
@@ -308,7 +308,7 @@ class ProjectController extends Controller
             $customProjectId = 'PRJ-' . rand(10000, 99999);
         } while (Project::where('custom_project_id', $customProjectId)->exists());
 
-        $package = $validated['package'] ?? ($validated['package_tier'] ?? 'Standard');
+
         $issueComment = $validated['issue_comment'] ?? ($validated['comments'] ?? '');
 
         // 3. Create Project
@@ -316,8 +316,7 @@ class ProjectController extends Controller
             'customer_id' => $customer->id,
             'custom_project_id' => $customProjectId,
             'project_name' => $validated['project_name'],
-            'service_type' => $validated['service_type'],
-            'package' => $package,
+
             'start_date' => $validated['start_date'],
             'due_date' => $validated['due_date'],
             'payment_info' => $validated['payment_info'] ?? '',
@@ -356,6 +355,8 @@ class ProjectController extends Controller
                 [
                     'customer_id' => $customer->id,
                     'domain_name' => $validated['domain_name'],
+                    'registrar' => 'HubTech Panel',
+                    'hosting_provider' => 'Cloud Hosting',
                     'domain_expiry_date' => !empty($validated['renewal_date']) ? $validated['renewal_date'] : null,
                     'renewal_date' => !empty($validated['renewal_date']) ? $validated['renewal_date'] : null,
                     'status' => 'Active',
@@ -393,8 +394,7 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'project_name' => 'required|string|max:150',
-            'service_type' => 'required|string|max:100',
-            'package' => 'required|string|max:100',
+
             'status' => 'required|string',
             'priority' => 'nullable|in:High,Medium,Low',
             'workflow_stage' => 'nullable|string',
@@ -415,6 +415,7 @@ class ProjectController extends Controller
             'dvc' => 'nullable|string',
             'renewal_date' => 'nullable|string',
             'analytics_webmaster_email' => 'nullable|string|max:150',
+            'design_status' => 'nullable|string',
             'ftp_login_details' => 'nullable|string',
             'social_media_login' => 'nullable|string',
             'product_details' => 'nullable|string',
