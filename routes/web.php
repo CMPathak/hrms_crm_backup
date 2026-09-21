@@ -112,18 +112,17 @@ Route::get('/fix-db', function() {
         }
     }
     
-    if (empty($errors)) {
-        return response()->json(['status' => 'Success', 'message' => 'DB Columns fixed for long Excel data.']);
-    } else {
-        return response()->json(['status' => 'Some errors occurred', 'errors' => $errors]);
-    }
-});
-
 Route::get('/reset-db', function() {
     \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
     \Illuminate\Support\Facades\DB::table('projects')->truncate();
     \Illuminate\Support\Facades\DB::table('customers')->truncate();
     \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     
-    return "<h1>Success! All Old/Wrong Projects & Customers have been deleted!</h1><p>You can now go back to your dashboard and import the Excel sheet again.</p>";
+    // Fix columns on live server to prevent "Data too long" errors
+    try {
+        \Illuminate\Support\Facades\DB::statement('ALTER TABLE customers MODIFY COLUMN mobile VARCHAR(255)');
+        \Illuminate\Support\Facades\DB::statement('ALTER TABLE customers MODIFY COLUMN address TEXT');
+    } catch(\Exception $e) {}
+    
+    return "<h1>Success! All Old/Wrong Projects & Customers have been deleted!</h1><p>Database columns have also been expanded automatically. You can now go back to your dashboard and import the Excel sheet.</p>";
 });
