@@ -30,6 +30,11 @@ class Project extends Model
         return $this->hasOne(DomainHosting::class);
     }
 
+    public function logoRegistration()
+    {
+        return $this->hasOne(LogoRegistration::class);
+    }
+
     public function keywords()
     {
         return $this->hasMany(SeoKeyword::class);

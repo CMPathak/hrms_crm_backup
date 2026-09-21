@@ -298,6 +298,7 @@ export default function Index({
             social_media_login: p.social_media_login || '',
             issue_comment: p.issue_comment || p.comments || '',
             description: p.description || '',
+            include_logo_registration: !!p.logo_registration,
         });
     };
 

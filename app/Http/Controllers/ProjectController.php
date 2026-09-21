@@ -136,7 +136,7 @@ class ProjectController extends Controller
             $perPage = 50;
         }
 
-        $query = Project::with(['customer', 'assignment.developer', 'assignment.designer', 'assignment.seoExecutive', 'domainHosting'])
+        $query = Project::with(['customer', 'assignment.developer', 'assignment.designer', 'assignment.seoExecutive', 'domainHosting', 'logoRegistration'])
             ->orderByRaw('COALESCE(start_date, created_at) DESC, id DESC');
 
         $user = $request->user();
@@ -351,18 +351,26 @@ class ProjectController extends Controller
 
         // 4. Save Domain if present
         if (!empty($validated['domain_name'])) {
-            DB::table('domains_hosting')->updateOrInsert(
-                ['project_id' => $project->id],
-                [
-                    'customer_id' => $customer->id,
-                    'domain_name' => $validated['domain_name'],
-                    'registrar' => 'HubTech Panel',
-                    'hosting_provider' => 'Cloud Hosting',
-                    'domain_expiry_date' => !empty($validated['renewal_date']) ? $validated['renewal_date'] : null,
-                    'renewal_date' => !empty($validated['renewal_date']) ? $validated['renewal_date'] : null,
-                    'status' => 'Active',
-                ]
-            );
+            $renewalInput = $validated['renewal_date'] ?? null;
+            $data = [
+                'customer_id' => $customer->id,
+                'domain_name' => $validated['domain_name'],
+                'registrar' => 'HubTech Panel',
+                'hosting_provider' => 'Cloud Hosting',
+                'status' => 'Active',
+                'project_id' => $project->id,
+            ];
+
+            if (!empty($renewalInput) && $renewalInput !== '0000-00-00') {
+                $data['domain_expiry_date'] = $renewalInput;
+                $data['renewal_date'] = $renewalInput;
+            } else {
+                // Fallback for strict mode DB
+                $data['domain_expiry_date'] = now()->addYear()->format('Y-m-d');
+                $data['renewal_date'] = now()->addYear()->format('Y-m-d');
+            }
+
+            DB::table('domains_hosting')->insert($data);
         }
 
         // 5. Link Project Assignment
@@ -463,22 +471,30 @@ class ProjectController extends Controller
         // Sync Domain Details
         if ($request->filled('domain_name')) {
             $renewalInput = $request->input('renewal_date');
-            $domainExpiry = (!empty($renewalInput) && $renewalInput !== '0000-00-00') 
-                ? $renewalInput 
-                : null;
-                
-            DB::table('domains_hosting')->updateOrInsert(
-                ['project_id' => $project->id],
-                [
-                    'customer_id' => $project->customer_id ?? 1,
-                    'domain_name' => $request->input('domain_name'),
-                    'registrar' => 'HubTech Panel',
-                    'hosting_provider' => 'Cloud Hosting',
-                    'domain_expiry_date' => $domainExpiry,
-                    'renewal_date' => $domainExpiry,
-                    'status' => 'Active',
-                ]
-            );
+            
+            $existingDomain = DB::table('domains_hosting')->where('project_id', $project->id)->first();
+            
+            $domainData = [
+                'customer_id' => $project->customer_id ?? 1,
+                'domain_name' => $request->input('domain_name'),
+            ];
+
+            if (!empty($renewalInput) && $renewalInput !== '0000-00-00') {
+                $domainData['domain_expiry_date'] = $renewalInput;
+                $domainData['renewal_date'] = $renewalInput;
+            }
+
+            if ($existingDomain) {
+                DB::table('domains_hosting')->where('project_id', $project->id)->update($domainData);
+            } else {
+                $domainData['project_id'] = $project->id;
+                $domainData['registrar'] = 'HubTech Panel';
+                $domainData['hosting_provider'] = 'Cloud Hosting';
+                $domainData['status'] = 'Active';
+                $domainData['domain_expiry_date'] = $domainData['domain_expiry_date'] ?? now()->addYear()->format('Y-m-d');
+                $domainData['renewal_date'] = $domainData['renewal_date'] ?? now()->addYear()->format('Y-m-d');
+                DB::table('domains_hosting')->insert($domainData);
+            }
         }
 
         // Sync Project Assignment Developer & SEO

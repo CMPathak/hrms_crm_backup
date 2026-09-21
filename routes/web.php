@@ -16,6 +16,20 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Temporary Setup Route (for shared hosting / Plesk without terminal)
+Route::get('/run-setup', function () {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('storage:link');
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        \Illuminate\Support\Facades\Artisan::call('config:cache');
+        \Illuminate\Support\Facades\Artisan::call('route:cache');
+        \Illuminate\Support\Facades\Artisan::call('view:cache');
+        return "✅ Commands executed successfully! Storage linked, DB migrated, and cache cleared.";
+    } catch (\Exception $e) {
+        return "❌ Error: " . $e->getMessage();
+    }
+});
+
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

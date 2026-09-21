@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import HmsLayout from '@/Layouts/HmsLayout';
 import axios from 'axios';
 import {
@@ -31,6 +31,10 @@ export default function ChatIndex({
     initialUnreadCounts = { channels: {}, direct: {} },
     currentUserId,
 }) {
+    const { auth } = usePage().props;
+    const currentUserRole = auth?.user?.role?.role_name?.toLowerCase() || '';
+    const isAdmin = currentUserRole === 'super_admin' || currentUserRole === 'admin' || auth?.user?.id === 1;
+
     const [selectedChannel, setSelectedChannel] = useState(initialChannel);
     const [selectedDmUser, setSelectedDmUser] = useState(
         initialDmUserId ? teamMembers.find((m) => m.id === initialDmUserId) : null
@@ -407,23 +411,27 @@ export default function ChatIndex({
                                                     <span className="text-[11px] font-bold text-slate-700">{senderName}</span>
                                                     <span className="text-[10px] text-slate-400">{timeStr}</span>
 
-                                                    {/* Edit / Delete — only for own messages, show on group hover */}
-                                                    {isMe && editingMsgId !== msg.id && (
+                                                    {/* Edit / Delete — show on group hover */}
+                                                    {(isMe || isAdmin) && editingMsgId !== msg.id && (
                                                         <div className="hidden group-hover:flex items-center gap-0.5 ml-1">
-                                                            <button
-                                                                onClick={() => { setEditingMsgId(msg.id); setEditText(msg.message || ''); }}
-                                                                className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="w-3 h-3" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteMessage(msg.id)}
-                                                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                                                title="Delete"
-                                                            >
-                                                                <Trash2 className="w-3 h-3" />
-                                                            </button>
+                                                            {isMe && (
+                                                                <button
+                                                                    onClick={() => { setEditingMsgId(msg.id); setEditText(msg.message || ''); }}
+                                                                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                                    title="Edit"
+                                                                >
+                                                                    <Pencil className="w-3 h-3" />
+                                                                </button>
+                                                            )}
+                                                            {isAdmin && (
+                                                                <button
+                                                                    onClick={() => handleDeleteMessage(msg.id)}
+                                                                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -587,24 +595,28 @@ export default function ChatIndex({
                                     />
                                     {/* Icons inside input — right side */}
                                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                                        {/* Image attach button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => imageInputRef.current?.click()}
-                                            title="Attach Image"
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                            <ImageIcon className="w-4 h-4" />
-                                        </button>
-                                        {/* PDF / File attach button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            title="Attach PDF"
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                            <Paperclip className="w-4 h-4" />
-                                        </button>
+                                        {isAdmin && (
+                                            <>
+                                                {/* Image attach button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => imageInputRef.current?.click()}
+                                                    title="Attach Image"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                >
+                                                    <ImageIcon className="w-4 h-4" />
+                                                </button>
+                                                {/* PDF / File attach button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    title="Attach PDF"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                >
+                                                    <Paperclip className="w-4 h-4" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
@@ -619,9 +631,13 @@ export default function ChatIndex({
                                 </button>
                             </form>
 
-                            <p className="text-[11px] text-slate-400 pb-2 px-5">
-                                📎 Attach images or PDF files along with your message.
-                            </p>
+                            {/* Help Text */}
+                            {isAdmin && (
+                                <div className="px-5 pb-4 text-[11px] text-slate-400 flex items-center gap-1.5">
+                                    <Paperclip className="w-3 h-3" />
+                                    Attach images or PDF files along with your message.
+                                </div>
+                            )}
                         </div>
                     </div>
 

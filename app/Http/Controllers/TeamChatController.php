@@ -127,8 +127,17 @@ class TeamChatController extends Controller
             $mime = $file->getMimeType();
             $fileType = str_contains($mime, 'pdf') ? 'pdf' : 'image';
             $fileName = $file->getClientOriginalName();
-            $stored = $file->store('chat-files', 'public');
-            $filePath = $stored ? Storage::url($stored) : null;
+            
+            // Store directly in public folder (bypasses symlink issues on shared hosting/Plesk)
+            $safeName = time() . '_' . preg_replace('/[^A-Za-z0-9.\-]/', '_', $fileName);
+            
+            $destinationPath = public_path('chat-files');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+            
+            $file->move($destinationPath, $safeName);
+            $filePath = url('chat-files/' . $safeName);
         }
 
         // Must have text or file
@@ -197,14 +206,18 @@ class TeamChatController extends Controller
         if (!$message) {
             return response()->json(['error' => 'Message not found.'], 404);
         }
-        if ($message->sender_id !== $user->id) {
+        if ($message->sender_id !== $user->id && !$user->isAdmin()) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
         // Delete file from storage if exists
         if ($message->file_path) {
-            $relativePath = str_replace('/storage/', '', $message->file_path);
-            Storage::disk('public')->delete($relativePath);
+            // Extract file name from URL and delete from public/chat-files
+            $fileName = basename(parse_url($message->file_path, PHP_URL_PATH));
+            $publicFilePath = public_path('chat-files/' . $fileName);
+            if (file_exists($publicFilePath)) {
+                unlink($publicFilePath);
+            }
         }
 
         $message->delete();
