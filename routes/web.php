@@ -97,9 +97,33 @@ Route::middleware('auth')->group(function () {
 require __DIR__.'/auth.php';
 
 Route::get('/fix-db', function() {
-    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX projects_custom_project_id_unique'); } catch(\Exception $e) {}
-    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX custom_project_id'); } catch(\Exception $e) {}
+    $errors = [];
     
-    $columns = \Illuminate\Support\Facades\DB::select('SHOW INDEXES FROM projects');
-    return response()->json($columns);
+    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX projects_custom_project_id_unique'); } catch(\Exception $e) { $errors[] = "Drop unique: " . $e->getMessage(); }
+    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX custom_project_id'); } catch(\Exception $e) { $errors[] = "Drop index: " . $e->getMessage(); }
+    
+    // Change columns to TEXT to avoid 'Data too long' errors during Excel import
+    $columnsToText = ['gmb_access_desc', 'approved_keywords', 'product_details', 'custom_project_id', 'comments', 'issue_comment', 'ftp_login_details', 'social_media_login'];
+    foreach ($columnsToText as $col) {
+        try {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE projects MODIFY COLUMN `$col` TEXT");
+        } catch(\Exception $e) {
+            $errors[] = "Alter $col: " . $e->getMessage();
+        }
+    }
+    
+    if (empty($errors)) {
+        return response()->json(['status' => 'Success', 'message' => 'DB Columns fixed for long Excel data.']);
+    } else {
+        return response()->json(['status' => 'Some errors occurred', 'errors' => $errors]);
+    }
+});
+
+Route::get('/reset-db', function() {
+    \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+    \Illuminate\Support\Facades\DB::table('projects')->truncate();
+    \Illuminate\Support\Facades\DB::table('customers')->truncate();
+    \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+    
+    return "<h1>Success! All Old/Wrong Projects & Customers have been deleted!</h1><p>You can now go back to your dashboard and import the Excel sheet again.</p>";
 });

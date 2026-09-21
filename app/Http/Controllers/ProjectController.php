@@ -634,8 +634,9 @@ class ProjectController extends Controller
         }
 
         // Allow handling of large files (e.g. 5000+ rows) without timing out
-        set_time_limit(0);
-        ini_set('memory_limit', '-1');
+        // Use @ to suppress errors on shared hosts where these functions are disabled
+        @set_time_limit(0);
+        @ini_set('memory_limit', '-1');
 
         $request->validate([
             'file' => 'required|mimes:csv,txt,xlsx,xls|max:20480', // 20MB limit
@@ -651,7 +652,11 @@ class ProjectController extends Controller
         // Parse file into rows array
         $rows = [];
         if (in_array(strtolower($extension), ['xlsx', 'xls'])) {
-            require_once app_path('Helpers/SimpleXLSX.php');
+            $parserPath = app_path('Helpers/SimpleXLSX.php');
+            if (!file_exists($parserPath)) {
+                return redirect()->back()->with('error', 'Server Error: SimpleXLSX.php file not found at ' . $parserPath . '. Please check folder name capitalization (Helpers vs helpers).');
+            }
+            require_once $parserPath;
             if ( $xlsx = \Shuchkin\SimpleXLSX::parse($filePath) ) {
                 $rows = $xlsx->rows();
             } else {
@@ -680,22 +685,23 @@ class ProjectController extends Controller
             // ... (rest of mapping logic)
 
             // Map user's human-readable Excel headers to Database column names
+            // Map user's human-readable Excel headers to Database column names
             $headerMap = [
-                'table id' => null,
-                'client name' => 'custom_project_id',
+                'table id' => 'custom_project_id',
+                'client name' => 'temp_client_name',
                 'company name' => 'customer_id',
-                'customer email' => 'sales_person_email', // mapping fallback
-                'contact person' => null,
-                'phone number' => null,
-                'business category' => null,
-                'address' => null,
+                'customer email' => 'temp_email',
+                'contact person' => 'temp_contact_person',
+                'phone number' => 'temp_mobile',
+                'business category' => 'temp_business_category',
+                'address' => 'temp_address',
                 'project name' => 'project_name',
                 'start date' => 'start_date',
                 'due date' => 'due_date',
                 'payment info' => 'payment_info',
                 'developer' => 'developer',
                 'seo person' => 'seo_person',
-                'domain name' => 'product_details',
+                'domain name' => 'temp_domain_name',
                 'renewal date' => 'renewal_date',
                 'sales person' => 'sales_person_name',
                 'sales person email' => 'sales_person_email',
@@ -730,8 +736,7 @@ class ProjectController extends Controller
                 }
 
                 if (!$dbCol) continue; // Skip columns that shouldn't be imported
-                if (!in_array($dbCol, $columns)) continue;
-                if ($dbCol === 'id' || $dbCol === 'created_at') continue;
+                if ($dbCol === 'created_at' || $dbCol === 'id') continue;
                 
                 if (isset($row[$index]) && trim($row[$index]) !== '') {
                     $val = trim($row[$index]);
@@ -750,11 +755,22 @@ class ProjectController extends Controller
             if (empty($firstRowData)) {
                 $firstRowData = $projectData;
             }
+            
+            // Skip logic based on Table ID (mapped to custom_project_id)
+            if (!empty($projectData['custom_project_id'])) {
+                $exists = \App\Models\Project::where('custom_project_id', $projectData['custom_project_id'])->exists();
+                if ($exists) {
+                    continue; // Skip this row completely
+                }
+            } else {
+                // Generate a random Table ID if it is missing in the excel sheet
+                $projectData['custom_project_id'] = 'PRJ-' . rand(10000, 99999);
+            }
 
             if (!empty($projectData['project_name'])) {
                 $projectData['created_at'] = now();
                 
-                // Fallback for required dates if they are empty or completely invalid in Excel (like "md" or "NA")
+                // Fallback for required dates if they are empty or completely invalid in Excel
                 if (empty($projectData['start_date']) || !strtotime($projectData['start_date'])) {
                     $projectData['start_date'] = date('Y-m-d');
                 } else {
@@ -783,13 +799,27 @@ class ProjectController extends Controller
                         $projectData['customer_id'] = $existingCustomers[$companyName];
                     } else {
                         // Create a new customer and add to memory array
+                        static $customerCounter = 1;
+                        $customCustId = 'C-' . rand(100, 999) . '-' . $customerCounter++;
                         $newCustomer = \App\Models\Customer::create([
+                            'custom_id' => $customCustId,
                             'company_name' => $companyName,
-                            'client_name' => $projectData['custom_project_id'] ?? $companyName,
+                            'client_name' => $projectData['temp_client_name'] ?? $companyName,
+                            'contact_person' => $projectData['temp_contact_person'] ?? '',
+                            'mobile' => $projectData['temp_mobile'] ?? '',
+                            'email' => $projectData['temp_email'] ?? ($companyName . '@client.local'),
+                            'address' => $projectData['temp_address'] ?? '',
+                            'business_category' => $projectData['temp_business_category'] ?? '',
+                            'created_at' => now(),
                         ]);
                         $existingCustomers[$companyName] = $newCustomer->id;
                         $projectData['customer_id'] = $newCustomer->id;
                     }
+                }
+
+                // Append Domain Name to product_details if provided
+                if (!empty($projectData['temp_domain_name'])) {
+                    $projectData['product_details'] = trim(($projectData['product_details'] ?? '') . ' | Domain: ' . $projectData['temp_domain_name'], ' |');
                 }
 
                 // Sanitize ENUMs to prevent "Data truncated" MySQL errors
@@ -803,7 +833,19 @@ class ProjectController extends Controller
                     $projectData['priority'] = null;
                 }
 
+                // Clean up temp keys before inserting into projects table
+                unset($projectData['temp_client_name']);
+                unset($projectData['temp_email']);
+                unset($projectData['temp_contact_person']);
+                unset($projectData['temp_mobile']);
+                unset($projectData['temp_business_category']);
+                unset($projectData['temp_address']);
+                unset($projectData['temp_domain_name']);
+
                 try {
+                    Project::insert($projectData);
+                    $insertedCount++;
+                } catch (\Throwable $e) {
                     Project::insert($projectData);
                     $insertedCount++;
                 } catch (\Throwable $e) {
