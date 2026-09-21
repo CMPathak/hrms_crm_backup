@@ -21,14 +21,26 @@ import {
     User,
     AlertTriangle,
     Eye,
-    EyeOff
+    EyeOff,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export default function UsersIndex({ users = [], roles = [], metrics = {}, currentTab = 'all', search: initialSearch = '' }) {
-    const { flash } = usePage().props;
+    const { flash, auth } = usePage().props;
+    const roleName = (auth.user?.role?.role_name || '').toLowerCase();
+    const isAdmin = roleName === 'super_admin' || roleName === 'admin' || auth.user?.id === 1;
 
     // Filter states
     const [search, setSearch] = useState(initialSearch);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    
+    const totalUsers = users.length;
+    const totalPages = Math.ceil(totalUsers / perPage) || 1;
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedUsers = users.slice(startIndex, startIndex + perPage);
+
     const [activeTab, setActiveTab] = useState(currentTab);
 
     // Modals
@@ -60,6 +72,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
     // Handle tab change
     const handleTabChange = (tab) => {
         setActiveTab(tab);
+        setCurrentPage(1);
         router.get(route('users.index'), {
             tab: tab !== 'all' ? tab : undefined,
             search: search || undefined,
@@ -72,6 +85,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
     // Handle search
     const handleSearchSubmit = (e) => {
         e.preventDefault();
+        setCurrentPage(1);
         router.get(route('users.index'), {
             tab: activeTab !== 'all' ? activeTab : undefined,
             search: search || undefined,
@@ -169,11 +183,12 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                         <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                             User & Role Management
                         </h1>
-                        <p className="text-sm text-slate-500 mt-1">
+                        {/* <p className="text-sm text-slate-500 mt-1">
                             Configure team members, access roles (Developer, Manager SEO, Sales, etc.) & active statuses.
-                        </p>
+                        </p> */}
                     </div>
 
+                    {isAdmin && (
                     <button
                         type="button"
                         onClick={() => {
@@ -185,11 +200,13 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                         <UserPlus className="w-4 h-4" />
                         <span>Add New User</span>
                     </button>
+                    )}
                 </div>
 
                 {/* 4 KPI SUMMARY CARDS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* 1. Developer Team */}
+                    {isAdmin && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">Developer Team</span>
@@ -202,8 +219,10 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                             <Code className="w-6 h-6" />
                         </div>
                     </div>
+                    )}
 
                     {/* 2. SEO Team */}
+                    {isAdmin && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">SEO Team</span>
@@ -216,6 +235,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                             <Search className="w-6 h-6" />
                         </div>
                     </div>
+                    )}
 
                     {/* 3. Sales Team */}
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
@@ -232,6 +252,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                     </div>
 
                     {/* 4. Visible Users */}
+                    {isAdmin && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">Visible Users</span>
@@ -244,6 +265,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                             <Users className="w-6 h-6" />
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* TEAM DIRECTORY & ROLES TABLE CARD */}
@@ -272,22 +294,63 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 />
                             </form>
 
-                            {/* Tabs group matching screenshot */}
-                            <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-slate-50">
+                            {/* Tab Filters Dropdown */}
+                            <select
+                                value={activeTab}
+                                onChange={(e) => handleTabChange(e.target.value)}
+                                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700 cursor-pointer w-full sm:w-auto"
+                            >
                                 {tabs.map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        type="button"
-                                        onClick={() => handleTabChange(tab.id)}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                                            activeTab === tab.id
-                                                ? 'bg-slate-900 text-white shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                                        }`}
-                                    >
+                                    <option key={tab.id} value={tab.id}>
                                         {tab.label}
-                                    </button>
+                                    </option>
                                 ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    
+                    {/* TOP PAGINATION */}
+                    <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 text-sm text-slate-600">
+                        <div>
+                            Showing {totalUsers === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + perPage, totalUsers)} of {totalUsers} entries
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={perPage}
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                                >
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value={Math.max(2000, totalUsers)}>Show All Entries</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === 1 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages || totalPages === 0}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === totalPages || totalPages === 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -302,18 +365,18 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                     <th className="py-3.5 px-4">Phone</th>
                                     <th className="py-3.5 px-4">Status</th>
                                     <th className="py-3.5 px-4">Registered</th>
-                                    <th className="py-3.5 px-5 text-right">Actions</th>
+                                    {isAdmin && <th className="py-3.5 px-5 text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
-                                {users.length === 0 ? (
+                                {paginatedUsers.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" className="py-12 text-center text-slate-400 font-medium">
+                                        <td colSpan={isAdmin ? 6 : 5} className="py-12 text-center text-slate-400 font-medium">
                                             No users found in this directory category.
                                         </td>
                                     </tr>
                                 ) : (
-                                    users.map((u) => (
+                                    paginatedUsers.map((u) => (
                                         <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
                                             {/* User & Contact */}
                                             <td className="py-3.5 px-5">
@@ -367,6 +430,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                             </td>
 
                                             {/* Actions */}
+                                            {isAdmin && (
                                             <td className="py-3.5 px-5 text-right">
                                                 <div className="inline-flex items-center gap-1.5">
                                                     {/* Edit */}
@@ -404,11 +468,57 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                                     </button>
                                                 </div>
                                             </td>
+                                            )}
                                         </tr>
                                     ))
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* BOTTOM PAGINATION */}
+                    <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 text-sm text-slate-600">
+                        <div>
+                            Showing {totalUsers === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + perPage, totalUsers)} of {totalUsers} entries
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={perPage}
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                                >
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value={Math.max(2000, totalUsers)}>Show All Entries</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === 1 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages || totalPages === 0}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === totalPages || totalPages === 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

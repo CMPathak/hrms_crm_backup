@@ -47,7 +47,7 @@ export default function HmsLayout({ header, children }) {
                 const res = await axios.get(route('notifications.summary'));
                 if (res.data) {
                     setUnreadChatCount(res.data.unreadChatCount || 0);
-                    
+
                     let newNotifs = res.data.notifications || [];
                     let domainAlerts = renewal_alerts.map(p => ({
                         id: `renewal_${p.id}`,
@@ -59,7 +59,7 @@ export default function HmsLayout({ header, children }) {
                     }));
 
                     let combined = [...newNotifs, ...domainAlerts];
-                    
+
                     setTotalNotificationsCount((res.data.totalNotificationsCount || 0) + domainAlerts.length);
                     setNotifications(combined);
                 }
@@ -96,92 +96,102 @@ export default function HmsLayout({ header, children }) {
 
     const navItems = isClient
         ? [
-              {
-                  name: 'My Client Portal',
-                  href: route('client-portal.index'),
-                  icon: Building2,
-                  active: route().current('client-portal.*'),
-              },
-              {
-                  name: 'Support Tickets',
-                  href: route('tickets.index'),
-                  icon: Headset,
-                  active: route().current('tickets.*'),
-              },
-          ]
+            {
+                name: 'My Client Portal',
+                href: route('client-portal.index'),
+                icon: Building2,
+                active: route().current('client-portal.*'),
+            },
+            /* {
+                name: 'Support Tickets',
+                href: route('tickets.index'),
+                icon: Headset,
+                active: route().current('tickets.*'),
+            }, */
+        ]
         : [
-              {
-                  name: 'Dashboard',
-                  href: route('dashboard'),
-                  icon: LayoutDashboard,
-                  active: route().current('dashboard'),
-              },
-              {
-                  name: 'Projects',
-                  icon: FolderKanban,
-                  active: route().current('projects.*'),
-                  hasSubmenu: true,
-                  isOpen: projectsOpen,
-                  toggle: () => setProjectsOpen(!projectsOpen),
-                  submenu: [
-                      { name: 'All Projects', href: route('projects.index') },
-                      { name: 'Active Projects', href: route('projects.index', { status: 'active' }) },
-                      { name: 'Hold Projects', href: route('projects.index', { status: 'hold' }) },
-                      { name: 'Completed Projects', href: route('projects.index', { status: 'completed' }) },
-                      { name: 'Closed Projects', href: route('projects.index', { status: 'closed' }) },
-                      { name: 'Pending Projects', href: route('projects.index', { status: 'pending' }) },
-                  ],
-              },
-              {
-                  name: 'Tasks',
-                  href: route('tasks.index'),
-                  icon: CheckSquare,
-                  active: route().current('tasks.*'),
-              },
+            {
+                name: 'Dashboard',
+                href: route('dashboard'),
+                icon: LayoutDashboard,
+                active: route().current('dashboard'),
+            },
+            {
+                name: 'Projects',
+                icon: FolderKanban,
+                active: route().current('projects.*'),
+                hasSubmenu: true,
+                isOpen: projectsOpen,
+                toggle: () => setProjectsOpen(!projectsOpen),
+                submenu: [
+                    { name: 'All Projects', href: route('projects.index') },
+                    { name: 'Active Projects', href: route('projects.index', { status: 'active' }) },
+                    { name: 'Hold Projects', href: route('projects.index', { status: 'hold' }) },
+                    { name: 'Completed Projects', href: route('projects.index', { status: 'completed' }) },
+                    { name: 'Closed Projects', href: route('projects.index', { status: 'closed' }) },
+                    { name: 'Pending Projects', href: route('projects.index', { status: 'pending' }) },
+                ],
+            },
+            {
+                name: 'Tasks',
+                href: route('tasks.index'),
+                icon: CheckSquare,
+                active: route().current('tasks.*'),
+            },
 
-              {
-                  name: 'Team Chat',
-                  href: route('chat.index'),
-                  icon: MessageSquare,
-                  active: route().current('chat.*'),
-                  badge: unreadChatCount > 0 ? unreadChatCount : null,
-              },
-              ...(isAdmin
-                  ? [
-                        {
-                            name: 'Client Portal',
-                            href: route('client-portal.index'),
-                            icon: Building2,
-                            active: route().current('client-portal.*'),
-                        },
-                        {
-                            name: 'Support Tickets',
-                            href: route('tickets.index'),
-                            icon: Headset,
-                            active: route().current('tickets.*'),
-                        },
-                        {
-                            name: 'Users & Roles',
-                            href: route('users.index'),
-                            icon: UserCog,
-                            active: route().current('users.*'),
-                        },
-                        {
-                            name: 'Upcoming Renewals',
-                            href: route('domains.index'),
-                            icon: Globe,
-                            active: route().current('domains.*'),
-                            badge: renewal_alerts?.length > 0 ? renewal_alerts.length : null,
-                        },
-                        {
-                            name: 'Login History',
-                            href: route('audit-trail'),
-                            icon: Activity,
-                            active: route().current('audit-trail'),
-                        },
-                    ]
-                  : []),
-          ];
+            {
+                name: 'Team Chat',
+                href: route('chat.index'),
+                icon: MessageSquare,
+                active: route().current('chat.*'),
+                badge: unreadChatCount > 0 ? unreadChatCount : null,
+            },
+            ...(isAdmin
+                ? [
+                    {
+                        name: 'Client Portal',
+                        href: route('client-portal.index'),
+                        icon: Building2,
+                        active: route().current('client-portal.*'),
+                    },
+                    /* {
+                        name: 'Support Tickets',
+                        href: route('tickets.index'),
+                        icon: Headset,
+                        active: route().current('tickets.*'),
+                    }, */
+                    {
+                        name: 'Logo Registrations',
+                        href: route('logo-registrations.index'),
+                        icon: UserCog,
+                        active: route().current('logo-registrations.*'),
+                    },
+                    {
+                        name: 'Login History',
+                        href: route('audit-trail'),
+                        icon: Activity,
+                        active: route().current('audit-trail'),
+                    },
+                ]
+                : []),
+            ...(isAdmin || roleName === 'sales_manager'
+                ? [
+                    {
+                        name: 'Upcoming Renewals',
+                        href: route('domains.index'),
+                        icon: Globe,
+                        active: route().current('domains.*'),
+                        badge: renewal_alerts?.length > 0 ? renewal_alerts.length : null,
+                    },
+                    {
+                        name: 'Users & Roles',
+                        href: route('users.index'),
+                        icon: UserCog,
+                        active: route().current('users.*'),
+                    },
+                ]
+                : []),
+        ];
 
     const toggleSidebar = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -208,11 +218,9 @@ export default function HmsLayout({ header, children }) {
 
             {/* Sidebar */}
             <aside
-                className={`fixed inset-y-0 left-0 z-50 bg-slate-900 text-slate-100 transform transition-all duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen flex flex-col ${
-                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } ${
-                    sidebarCollapsed ? 'lg:w-0 lg:overflow-hidden lg:opacity-0' : 'lg:w-64 lg:translate-x-0 lg:opacity-100'
-                }`}
+                className={`fixed inset-y-0 left-0 z-50 bg-slate-900 text-slate-100 transform transition-all duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                    } ${sidebarCollapsed ? 'lg:w-0 lg:overflow-hidden lg:opacity-0' : 'lg:w-64 lg:translate-x-0 lg:opacity-100'
+                    }`}
             >
                 {/* Brand Header */}
                 <div className="h-16 flex items-center justify-between px-4 bg-slate-950/80 border-b border-slate-800">
@@ -248,20 +256,18 @@ export default function HmsLayout({ header, children }) {
                                 <div>
                                     <button
                                         onClick={item.toggle}
-                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                                            item.active
-                                                ? 'bg-indigo-600/10 text-indigo-400'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
+                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${item.active
+                                            ? 'bg-indigo-600/10 text-indigo-400'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <item.icon className="w-4 h-4 text-indigo-400" />
                                             <span>{item.name}</span>
                                         </div>
                                         <ChevronDown
-                                            className={`w-4 h-4 transition-transform duration-200 ${
-                                                item.isOpen ? 'rotate-180' : ''
-                                            }`}
+                                            className={`w-4 h-4 transition-transform duration-200 ${item.isOpen ? 'rotate-180' : ''
+                                                }`}
                                         />
                                     </button>
 
@@ -282,11 +288,10 @@ export default function HmsLayout({ header, children }) {
                             ) : (
                                 <Link
                                     href={item.href}
-                                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                                        item.active
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                    }`}
+                                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${item.active
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <item.icon className="w-4 h-4" />
@@ -488,13 +493,12 @@ export default function HmsLayout({ header, children }) {
                                                             className="block p-3 rounded-xl hover:bg-slate-50 transition-colors"
                                                         >
                                                             <div className="flex items-start gap-2.5">
-                                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                                                                    n.type === 'chat'
-                                                                        ? 'bg-blue-100 text-blue-600'
-                                                                        : n.type === 'ticket'
+                                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${n.type === 'chat'
+                                                                    ? 'bg-blue-100 text-blue-600'
+                                                                    : n.type === 'ticket'
                                                                         ? 'bg-amber-100 text-amber-600'
                                                                         : 'bg-rose-100 text-rose-600'
-                                                                }`}>
+                                                                    }`}>
                                                                     {n.type === 'chat' && <MessageSquare className="w-3.5 h-3.5" />}
                                                                     {n.type === 'ticket' && <Headset className="w-3.5 h-3.5" />}
                                                                     {n.type === 'domain' && <Globe className="w-3.5 h-3.5" />}
@@ -593,8 +597,15 @@ export default function HmsLayout({ header, children }) {
                 </header>
 
                 {/* Page Content */}
-                <main className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto">
-                    {children}
+                <main className="flex-1 p-4 sm:p-6 overflow-y-auto max-w-7xl w-full mx-auto flex flex-col">
+                    <div className="flex-1">
+                        {children}
+                    </div>
+
+                    {/* Copyright Footer */}
+                    <footer className="mt-6 pt-4 border-t border-slate-200 text-center text-[11px] text-slate-400">
+                        © {new Date().getFullYear()} <span className="font-semibold text-slate-500">HubTech Media Solutions</span>. All rights reserved.
+                    </footer>
                 </main>
             </div>
         </div>

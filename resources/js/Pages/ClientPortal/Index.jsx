@@ -20,7 +20,7 @@ import {
     ShieldCheck,
     X,
     ExternalLink
-} from 'lucide-react';
+, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function ClientPortalIndex({
     viewMode = 'admin',
@@ -37,6 +37,9 @@ export default function ClientPortalIndex({
 }) {
     // Admin state
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
+
+    const [perPage, setPerPage] = useState(clients.per_page || 5);
+
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
@@ -67,7 +70,7 @@ export default function ClientPortalIndex({
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get(route('client-portal.index'), { search: searchTerm }, { preserveState: true });
+        router.get(route('client-portal.index'), { search: searchTerm, per_page: perPage }, { preserveState: true });
     };
 
     const handleOpenProgressModal = (proj) => {
@@ -366,13 +369,13 @@ export default function ClientPortalIndex({
                         </div>
 
                         {/* Client Management Header */}
-                        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900">Client Directory & Login Management</h3>
-                                    <p className="text-xs text-slate-500">
+                                    {/* <p className="text-xs text-slate-500">
                                         Add new clients, generate login accounts for them, and manage project progress & sign-offs.
-                                    </p>
+                                    </p> */}
                                 </div>
                                 <button
                                     onClick={() => setIsAddModalOpen(true)}
@@ -383,7 +386,8 @@ export default function ClientPortalIndex({
                                 </button>
                             </div>
 
-                            {/* Search bar */}
+                        {/* Search bar */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center mb-6">
                             <form onSubmit={handleSearch} className="flex gap-2">
                                 <div className="relative flex-1">
                                     <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -406,7 +410,7 @@ export default function ClientPortalIndex({
                                         type="button"
                                         onClick={() => {
                                             setSearchTerm('');
-                                            router.get(route('client-portal.index'));
+                                            router.get(route('client-portal.index'), { per_page: perPage });
                                         }}
                                         className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800"
                                     >
@@ -415,39 +419,87 @@ export default function ClientPortalIndex({
                                 )}
                             </form>
 
-                            {/* Clients Table */}
+                            </div>
+
+                        {/* Clients Table */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+                            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 text-sm text-slate-600">
+                                <div>
+                                    Showing {clients?.from ?? 0} to {clients?.to ?? 0} of {clients?.total ?? 0} entries
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={perPage}
+                                            onChange={(e) => {
+                                                setPerPage(e.target.value);
+                                                router.get(route('client-portal.index'), { search: searchTerm, per_page: e.target.value }, { preserveState: true, replace: true });
+                                            }}
+                                            className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                                        >
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                            <option value="25">25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="200">200</option>
+                                            <option value="500">500</option>
+                                            <option value="1000">1000</option>
+                                            <option value="2000">Show All Entries</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Link
+                                            href={clients?.prev_page_url || '#'}
+                                            preserveScroll
+                                            className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${clients?.prev_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </Link>
+                                        <Link
+                                            href={clients?.next_page_url || '#'}
+                                            preserveScroll
+                                            className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${clients?.next_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm text-slate-700">
-                                    <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] tracking-wider border-y border-slate-200">
+                                    <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] tracking-wider border-y border-slate-200 whitespace-nowrap">
                                         <tr>
-                                            <th className="py-3 px-4">Client / Company</th>
-                                            <th className="py-3 px-4">Contact Info</th>
-                                            <th className="py-3 px-4">Portal Login</th>
-                                            <th className="py-3 px-4">Assigned Projects & Progress</th>
-                                            <th className="py-3 px-4 text-right">Actions</th>
+                                            <th className="py-3 px-4 whitespace-nowrap">Client / Company</th>
+                                            <th className="py-3 px-4 whitespace-nowrap">Contact Info</th>
+                                            <th className="py-3 px-4 whitespace-nowrap">Portal Login</th>
+                                            <th className="py-3 px-4 whitespace-nowrap">Assigned Projects & Progress</th>
+                                            <th className="py-3 px-4 text-right whitespace-nowrap">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {clients.data?.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="py-8 text-center text-slate-400">
+                                                <td colSpan={5} className="py-8 text-center text-slate-400 whitespace-nowrap">
                                                     No clients found. Click "+ Add New Client" to onboard a client.
                                                 </td>
                                             </tr>
                                         ) : (
                                             clients.data?.map((c) => (
                                                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-3.5 px-4">
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
                                                         <div className="font-bold text-slate-900">{c.company_name}</div>
                                                         <div className="text-xs text-slate-500">
                                                             {c.client_name} • <span className="font-mono text-blue-600">{c.custom_id}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-3.5 px-4 text-xs">
+                                                    <td className="py-3.5 px-4 text-xs whitespace-nowrap">
                                                         <div className="text-slate-900 font-medium">{c.email}</div>
                                                         <div className="text-slate-500">{c.mobile || 'No phone'}</div>
                                                     </td>
-                                                    <td className="py-3.5 px-4">
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
                                                         {c.user ? (
                                                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                                                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -457,7 +509,7 @@ export default function ClientPortalIndex({
                                                             <span className="text-xs text-slate-400 italic">No User Account</span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3.5 px-4">
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
                                                         {c.projects && c.projects.length > 0 ? (
                                                             <div className="space-y-1.5 max-w-xs">
                                                                 {c.projects.map((proj) => (
@@ -488,7 +540,7 @@ export default function ClientPortalIndex({
                                                             <span className="text-xs text-slate-400">No project linked</span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3.5 px-4 text-right">
+                                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
                                                         {c.projects && c.projects.length > 0 && (
                                                             <button
                                                                 onClick={() => handleOpenProgressModal(c.projects[0])}
@@ -506,27 +558,52 @@ export default function ClientPortalIndex({
                                 </table>
                             </div>
 
-                            {/* Pagination */}
-                            {clients.links && clients.links.length > 3 && (
-                                <div className="flex justify-end gap-1 pt-3 border-t border-slate-100">
-                                    {clients.links.map((link, idx) => (
-                                        <Link
-                                            key={idx}
-                                            href={link.url || '#'}
-                                            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all ${
-                                                link.active
-                                                    ? 'bg-blue-600 text-white'
-                                                    : link.url
-                                                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                                    : 'text-slate-300 pointer-events-none'
-                                            }`}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    ))}
+                            
+                            <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 text-sm text-slate-600">
+                                <div>
+                                    Showing {clients?.from ?? 0} to {clients?.to ?? 0} of {clients?.total ?? 0} entries
                                 </div>
-                            )}
-                        </div>
-                    </>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={perPage}
+                                            onChange={(e) => {
+                                                setPerPage(e.target.value);
+                                                router.get(route('client-portal.index'), { search: searchTerm, per_page: e.target.value }, { preserveState: true, replace: true });
+                                            }}
+                                            className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-tlue-500 bg-white cursor-pointer"
+                                        >
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                            <option value="25">25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="200">200</option>
+                                            <option value="500">500</option>
+                                            <option value="1000">1000</option>
+                                            <option value="2000">Show All Entries</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Link
+                                            href={clients?.prev_page_url || '#'}
+                                            preserveScroll
+                                            className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${clients?.prev_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </Link>
+                                        <Link
+                                            href={clients?.next_page_url || '#'}
+                                            preserveScroll
+                                            className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${clients?.next_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+</div>
+                        </>
                 )}
             </div>
 

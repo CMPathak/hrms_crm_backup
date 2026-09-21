@@ -17,15 +17,27 @@ import {
     ShieldCheck,
     Calendar,
     DollarSign,
-    RefreshCw
+    RefreshCw,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 'all', search: initialSearch = '' }) {
     const [search, setSearch] = useState(initialSearch);
     const [activeTab, setActiveTab] = useState(currentTab);
 
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    
+    const totalDomains = domains.length;
+    const totalPages = Math.ceil(totalDomains / perPage) || 1;
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedDomains = domains.slice(startIndex, startIndex + perPage);
+
     const handleTabChange = (tab) => {
         setActiveTab(tab);
+        setCurrentPage(1);
         router.get(route('domains.index'), {
             tab: tab !== 'all' ? tab : undefined,
             search: search || undefined,
@@ -37,6 +49,7 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
+        setCurrentPage(1);
         router.get(route('domains.index'), {
             tab: activeTab !== 'all' ? activeTab : undefined,
             search: search || undefined,
@@ -66,9 +79,9 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                             <Globe className="w-7 h-7 text-indigo-600" />
                             <span>Domain & Hosting Expiry Board</span>
                         </h1>
-                        <p className="text-sm text-slate-500 mt-1">
+                        {/* <p className="text-sm text-slate-500 mt-1">
                             Monitor client domain lifecycles, upcoming renewal dates, SSL certificates, and hosting packages.
-                        </p>
+                        </p> */}
                     </div>
                 </div>
 
@@ -157,29 +170,62 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                 />
                             </form>
 
-                            {/* Tab Filters */}
-                            <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 overflow-x-auto">
+                            {/* Tab Filters Dropdown */}
+                            <select
+                                value={activeTab}
+                                onChange={(e) => handleTabChange(e.target.value)}
+                                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700 cursor-pointer w-full sm:w-auto"
+                            >
                                 {tabs.map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        type="button"
-                                        onClick={() => handleTabChange(tab.id)}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                                            activeTab === tab.id
-                                                ? 'bg-slate-900 text-white shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                                        }`}
-                                    >
-                                        <span>{tab.label}</span>
-                                        {tab.badge !== undefined && tab.badge > 0 && (
-                                            <span className={`px-1.5 py-0.2 rounded-full text-[0.65rem] font-bold ${
-                                                activeTab === tab.id ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-                                            }`}>
-                                                {tab.badge}
-                                            </span>
-                                        )}
-                                    </button>
+                                    <option key={tab.id} value={tab.id}>
+                                        {tab.label} {tab.badge !== undefined && tab.badge > 0 ? `(${tab.badge})` : ''}
+                                    </option>
                                 ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* TOP PAGINATION */}
+                    <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 text-sm text-slate-600">
+                        <div>
+                            Showing {totalDomains === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + perPage, totalDomains)} of {totalDomains} entries
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={perPage}
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                                >
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value={Math.max(2000, totalDomains)}>Show All Entries</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === 1 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages || totalPages === 0}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === totalPages || totalPages === 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -187,10 +233,10 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                     {/* Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
-                            <thead>
+                            <thead className="whitespace-nowrap">
                                 <tr className="border-b border-slate-100 bg-slate-50/70 text-[0.75rem] font-bold text-slate-600 uppercase tracking-wider">
-                                    <th className="py-3.5 px-5 w-1/4">Domain & Project</th>
-                                    <th className="py-3.5 px-4 w-1/5">Client / Account</th>
+                                    <th className="py-3.5 px-5 w-1/4 whitespace-nowrap">Domain & Project</th>
+                                    <th className="py-3.5 px-4 w-1/5 whitespace-nowrap">Client / Account</th>
                                     <th className="py-3.5 px-4 whitespace-nowrap">Registrar & Hosting</th>
                                     <th className="py-3.5 px-4 whitespace-nowrap">Expiry Date & Timeline</th>
                                     <th className="py-3.5 px-4 whitespace-nowrap">Renewal Date</th>
@@ -198,17 +244,17 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
-                                {domains.length === 0 ? (
+                                {paginatedDomains.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" className="py-12 text-center text-slate-400 font-medium">
+                                        <td colSpan="6" className="py-12 text-center text-slate-400 font-medium whitespace-nowrap">
                                             No domain records found matching current filters.
                                         </td>
                                     </tr>
                                 ) : (
-                                    domains.map((d) => (
+                                    paginatedDomains.map((d) => (
                                         <tr key={d.id} className="hover:bg-slate-50/60 transition-colors">
                                             {/* Domain & Project */}
-                                            <td className="py-3.5 px-5">
+                                            <td className="py-3.5 px-5 whitespace-nowrap">
                                                 <div className="flex items-start gap-2.5">
                                                     <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
                                                         <Globe className="w-4 h-4" />
@@ -238,7 +284,7 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                             </td>
 
                                             {/* Client / Account */}
-                                            <td className="py-3.5 px-4">
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
                                                 <div className="space-y-1">
                                                     <div className="font-bold text-slate-900 flex items-start gap-1.5">
                                                         <Building2 className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
@@ -260,7 +306,7 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                             </td>
 
                                             {/* Registrar & Hosting */}
-                                            <td className="py-3.5 px-4">
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
                                                 <div className="space-y-1">
                                                     <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                                         <span>{d.registrar}</span>
@@ -279,7 +325,7 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                             </td>
 
                                             {/* Expiry Date & Timeline */}
-                                            <td className="py-3.5 px-4">
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
                                                 <div className="space-y-1">
                                                     <div className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -312,12 +358,15 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                             </td>
 
                                             {/* Renewal Date */}
-                                            <td className="py-3.5 px-4 text-xs font-semibold text-slate-700">
-                                                {d.renewal_date && d.renewal_date !== '0000-00-00' ? d.renewal_date : 'N/A'}
+                                            <td className="whitespace-nowrap py-3.5 px-4 text-xs font-semibold text-slate-700">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                    <span>{d.formatted_renewal_date}</span>
+                                                </div>
                                             </td>
 
                                             {/* Status */}
-                                            <td className="py-3.5 px-4">
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
                                                 {d.is_expired ? (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
@@ -335,6 +384,51 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* PAGINATION */}
+                    <div className="p-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-4 bg-white text-sm text-slate-600">
+                        <div>
+                            Showing {totalDomains === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + perPage, totalDomains)} of {totalDomains} entries
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={perPage}
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                                >
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value={Math.max(2000, totalDomains)}>Show All Entries</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === 1 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages || totalPages === 0}
+                                    className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === totalPages || totalPages === 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

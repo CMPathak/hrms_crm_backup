@@ -14,7 +14,7 @@ class DomainController extends Controller
     {
         $today = Carbon::today()->toDateString();
         $in7Days = Carbon::today()->addDays(7)->toDateString();
-        $in30Days = Carbon::today()->addDays(30)->toDateString();
+        $in60Days = Carbon::today()->addDays(60)->toDateString();
 
         $search = $request->input('search', '');
         $statusTab = strtolower($request->input('tab', 'all'));
@@ -57,7 +57,7 @@ class DomainController extends Controller
         // Tab Filter
         if ($statusTab === 'expiring_soon') {
             $query->where('dh.domain_expiry_date', '>=', $today)
-                  ->where('dh.domain_expiry_date', '<=', $in30Days);
+                  ->where('dh.domain_expiry_date', '<=', $in60Days);
         } elseif ($statusTab === 'critical') {
             $query->where('dh.domain_expiry_date', '>=', $today)
                   ->where('dh.domain_expiry_date', '<=', $in7Days);
@@ -87,6 +87,9 @@ class DomainController extends Controller
                 'domain_expiry_date' => $d->domain_expiry_date,
                 'formatted_expiry' => $expiry ? $expiry->format('M d, Y') : '—',
                 'renewal_date' => $d->renewal_date,
+                'formatted_renewal_date' => ($d->renewal_date && $d->renewal_date !== '0000-00-00') 
+                    ? Carbon::parse($d->renewal_date)->format('M d, Y') 
+                    : ($expiry ? $expiry->format('M d, Y') : '—'),
                 'cost_amount' => $d->cost_amount ? number_format($d->cost_amount, 2) : '0.00',
                 'status' => $d->domain_status ?? 'Active',
                 'days_remaining' => $daysRemaining,
@@ -115,7 +118,7 @@ class DomainController extends Controller
             ->count();
         $expiringSoonCount = DB::table('domains_hosting')
             ->where('domain_expiry_date', '>=', $today)
-            ->where('domain_expiry_date', '<=', $in30Days)
+            ->where('domain_expiry_date', '<=', $in60Days)
             ->count();
         $activeCount = DB::table('domains_hosting')->where('domain_expiry_date', '>=', $today)->count();
 

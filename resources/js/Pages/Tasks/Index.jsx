@@ -16,7 +16,9 @@ import {
     Folder,
     User,
     Filter,
-    Check
+    Check,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export default function TasksIndex({ tasks, stats, projects, users, filters, isManager }) {
@@ -34,6 +36,15 @@ export default function TasksIndex({ tasks, stats, projects, users, filters, isM
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [deletingTask, setDeletingTask] = useState(null);
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    
+    const totalTasks = tasks.length;
+    const totalPages = Math.ceil(totalTasks / perPage) || 1;
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedTasks = tasks.slice(startIndex, startIndex + perPage);
 
     // Create Form
     const createForm = useForm({
@@ -59,6 +70,7 @@ export default function TasksIndex({ tasks, stats, projects, users, filters, isM
 
     // Handle filter submit
     const applyFilters = (newFilters = {}) => {
+        setCurrentPage(1);
         const query = {
             search,
             status: statusFilter,
@@ -449,170 +461,216 @@ export default function TasksIndex({ tasks, stats, projects, users, filters, isM
                         </button>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                                    <th className="py-3.5 px-4">Task Details</th>
-                                    <th className="py-3.5 px-4">Project</th>
-                                    <th className="py-3.5 px-4">Assigned To</th>
-                                    <th className="py-3.5 px-4">Due Date</th>
-                                    <th className="py-3.5 px-4">Priority</th>
-                                    <th className="py-3.5 px-4">Status</th>
-                                    <th className="py-3.5 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-sm">
-                                {tasks.map((task) => (
-                                    <tr
-                                        key={task.id}
-                                        className="hover:bg-slate-50/80 transition-colors group"
-                                    >
-                                        {/* Task Details */}
-                                        <td className="py-4 px-4 max-w-md">
-                                            <div className="flex items-start gap-2.5">
-                                                <button
-                                                    onClick={() =>
-                                                        handleQuickStatus(
-                                                            task,
-                                                            task.status === 'Completed' ? 'Pending' : 'Completed'
-                                                        )
-                                                    }
-                                                    className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
-                                                        task.status === 'Completed'
-                                                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                                                            : 'border-slate-300 hover:border-indigo-600 text-transparent hover:text-indigo-400'
-                                                    }`}
-                                                    title={
-                                                        task.status === 'Completed'
-                                                            ? 'Mark as Pending'
-                                                            : 'Mark as Completed'
-                                                    }
-                                                >
-                                                    <Check className="w-3.5 h-3.5" />
-                                                </button>
-                                                <div>
-                                                    <div
-                                                        className={`font-semibold text-slate-800 ${
-                                                            task.status === 'Completed' ? 'line-through text-slate-400' : ''
-                                                        }`}
-                                                    >
-                                                        {task.title}
-                                                    </div>
-                                                    {task.description && (
-                                                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                                                            {task.description}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        {/* Project */}
-                                        <td className="py-4 px-4">
-                                            {task.project ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                                                    <Folder className="w-3 h-3 text-slate-400" />
-                                                    {task.project.project_name}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400 italic">
-                                                    General / Internal
-                                                </span>
-                                            )}
-                                        </td>
-
-                                        {/* Assignee */}
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                                                    {task.assignee?.name?.charAt(0) || 'U'}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-medium text-slate-800 truncate">
-                                                        {task.assignee?.name || 'Unassigned'}
-                                                    </p>
-                                                    {task.assigner && (
-                                                        <p className="text-[10px] text-slate-400">
-                                                            by {task.assigner.name}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        {/* Due Date */}
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <span className="text-xs text-slate-600 font-medium">
-                                                {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}
-                                            </span>
-                                        </td>
-
-                                        {/* Priority */}
-                                        <td className="py-4 px-4">
-                                            <span
-                                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityBadge(
-                                                    task.priority
-                                                )}`}
-                                            >
-                                                {task.priority || 'Medium'}
-                                            </span>
-                                        </td>
-
-                                        {/* Status */}
-                                        <td className="py-4 px-4">
-                                            <span
-                                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(
-                                                    task.status
-                                                )}`}
-                                            >
-                                                {task.status || 'Pending'}
-                                            </span>
-                                        </td>
-
-                                        {/* Actions */}
-                                        <td className="py-4 px-4 text-right whitespace-nowrap">
-                                            <div className="inline-flex items-center gap-1">
-                                                {task.status !== 'Completed' ? (
-                                                    <button
-                                                        onClick={() => handleQuickStatus(task, 'Completed')}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                                                        title="Mark as Completed"
-                                                    >
-                                                        <Check className="w-4 h-4" />
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleQuickStatus(task, 'Pending')}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                                                        title="Reopen Task"
-                                                    >
-                                                        <RotateCcw className="w-4 h-4" />
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => handleOpenEdit(task)}
-                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                                    title="Edit Task"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-
-                                                <button
-                                                    onClick={() => setDeletingTask(task)}
-                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                                    title="Delete Task"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Task Details</th>
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Project</th>
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Assigned To</th>
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Due Date</th>
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Priority</th>
+                                        <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
+                                        <th className="py-3.5 px-4 text-right whitespace-nowrap">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-sm">
+                                    {paginatedTasks.map((task) => (
+                                        <tr
+                                            key={task.id}
+                                            className="hover:bg-slate-50/80 transition-colors group"
+                                        >
+                                            {/* Task Details */}
+                                            <td className="py-4 px-4 max-w-md whitespace-nowrap">
+                                                <div className="flex items-start gap-2.5">
+                                                    <button
+                                                        onClick={() =>
+                                                            handleQuickStatus(
+                                                                task,
+                                                                task.status === 'Completed' ? 'Pending' : 'Completed'
+                                                            )
+                                                        }
+                                                        className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                                            task.status === 'Completed'
+                                                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                                                : 'border-slate-300 hover:border-indigo-600 text-transparent hover:text-indigo-400'
+                                                        }`}
+                                                        title={
+                                                            task.status === 'Completed'
+                                                                ? 'Mark as Pending'
+                                                                : 'Mark as Completed'
+                                                        }
+                                                    >
+                                                        <Check className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <div>
+                                                        <div
+                                                            className={`font-semibold text-slate-800 ${
+                                                                task.status === 'Completed' ? 'line-through text-slate-400' : ''
+                                                            }`}
+                                                        >
+                                                            {task.title}
+                                                        </div>
+                                                        {task.description && (
+                                                            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                                                                {task.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Project */}
+                                            <td className="py-4 px-4 whitespace-nowrap">
+                                                {task.project ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                        <Folder className="w-3 h-3 text-slate-400" />
+                                                        {task.project.project_name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic">
+                                                        General / Internal
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            {/* Assignee */}
+                                            <td className="py-4 px-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                                                        {task.assignee?.name?.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-medium text-slate-800 truncate">
+                                                            {task.assignee?.name || 'Unassigned'}
+                                                        </p>
+                                                        {task.assigner && (
+                                                            <p className="text-[10px] text-slate-400">
+                                                                by {task.assigner.name}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Due Date */}
+                                            <td className="py-4 px-4 whitespace-nowrap">
+                                                <span className="text-xs text-slate-600 font-medium">
+                                                    {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}
+                                                </span>
+                                            </td>
+
+                                            {/* Priority */}
+                                            <td className="py-4 px-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityBadge(
+                                                        task.priority
+                                                    )}`}
+                                                >
+                                                    {task.priority || 'Medium'}
+                                                </span>
+                                            </td>
+
+                                            {/* Status */}
+                                            <td className="py-4 px-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(
+                                                        task.status
+                                                    )}`}
+                                                >
+                                                    {task.status || 'Pending'}
+                                                </span>
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="py-4 px-4 text-right whitespace-nowrap">
+                                                <div className="inline-flex items-center gap-1">
+                                                    {task.status !== 'Completed' ? (
+                                                        <button
+                                                            onClick={() => handleQuickStatus(task, 'Completed')}
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                            title="Mark as Completed"
+                                                        >
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleQuickStatus(task, 'Pending')}
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                                                            title="Reopen Task"
+                                                        >
+                                                            <RotateCcw className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+
+                                                    <button
+                                                        onClick={() => handleOpenEdit(task)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                                        title="Edit Task"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => setDeletingTask(task)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                        title="Delete Task"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {/* PAGINATION */}
+                        <div className="p-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-4 bg-white text-sm text-slate-600">
+                            <div>
+                                Showing {totalTasks === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + perPage, totalTasks)} of {totalTasks} entries
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={perPage}
+                                        onChange={(e) => {
+                                            setPerPage(Number(e.target.value));
+                                            setCurrentPage(1);
+                                        }}
+                                        className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                                    >
+                                        <option value="5">5</option>
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="200">200</option>
+                                        <option value="500">500</option>
+                                        <option value="1000">1000</option>
+                                        <option value={Math.max(2000, totalTasks)}>Show All Entries</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === 1 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages || totalPages === 0}
+                                        className={`px-2 py-1 rounded-lg border flex items-center justify-center transition-colors ${currentPage === totalPages || totalPages === 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
 

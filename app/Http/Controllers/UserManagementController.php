@@ -19,19 +19,28 @@ class UserManagementController extends Controller
     {
         $user = $request->user();
         if (!$user || !$user->isAdmin()) {
-            abort(403, 'Unauthorized. Only Super Admin and Admin can access User & Role Management.');
+            abort(403, 'Unauthorized. Only Super Admin and Admin can access User Management modification.');
         }
     }
 
     public function index(Request $request): Response
     {
-        $this->authorizeAdmin($request);
+        $user = $request->user();
+        if (!$user || (!$user->isAdmin() && !$user->hasRole('sales_manager'))) {
+            abort(403, 'Unauthorized. Only Admin and Sales Manager can view Users.');
+        }
 
         $currentTab = strtolower($request->input('tab', 'all'));
         $search = $request->input('search', '');
 
         // Base user query with role
         $query = User::with('role')->orderBy('id', 'desc');
+
+        if ($request->user() && $request->user()->hasRole('sales_manager')) {
+            $query->whereHas('role', function ($q) {
+                $q->where('role_name', 'sales');
+            });
+        }
 
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {

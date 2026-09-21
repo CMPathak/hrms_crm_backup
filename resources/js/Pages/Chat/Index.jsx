@@ -11,7 +11,15 @@ import {
     Shield,
     Sparkles,
     Circle,
-    Clock
+    Clock,
+    Paperclip,
+    ImageIcon,
+    FileText,
+    X,
+    Pencil,
+    Trash2,
+    Check,
+    Download,
 } from 'lucide-react';
 
 export default function ChatIndex({
@@ -31,7 +39,14 @@ export default function ChatIndex({
     const [unreadCounts, setUnreadCounts] = useState(initialUnreadCounts || { channels: {}, direct: {} });
     const [inputText, setInputText] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);   // { file, preview, type }
+    const [editingMsgId, setEditingMsgId] = useState(null);   // id of message being edited
+    const [editText, setEditText] = useState('');              // text in edit input
     const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const imageInputRef = useRef(null);
+
+    const prevMessagesLengthRef = useRef(messages?.length || 0);
 
     // Auto-scroll to bottom of messages
     const scrollToBottom = () => {
@@ -39,8 +54,25 @@ export default function ChatIndex({
     };
 
     useEffect(() => {
-        scrollToBottom();
+        // Only scroll to bottom if the number of messages has changed (e.g. new message received)
+        if (messages?.length !== prevMessagesLengthRef.current) {
+            scrollToBottom();
+            prevMessagesLengthRef.current = messages?.length || 0;
+        }
     }, [messages]);
+
+    // Sync active chat state to URL so page reload restores correct chat
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (selectedDmUser) {
+            url.searchParams.set('dm_user_id', selectedDmUser.id);
+            url.searchParams.delete('channel');
+        } else {
+            url.searchParams.set('channel', selectedChannel);
+            url.searchParams.delete('dm_user_id');
+        }
+        window.history.replaceState({}, '', url.toString());
+    }, [selectedChannel, selectedDmUser]);
 
     // Polling effect every 3 seconds to fetch new messages live
     useEffect(() => {
@@ -73,24 +105,42 @@ export default function ChatIndex({
         return () => clearInterval(interval);
     }, [selectedChannel, selectedDmUser]);
 
-    // Handle sending message (Strictly text-only, no file sharing)
+    // Handle file selection
+    const handleFileSelect = (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const preview = type === 'image' ? URL.createObjectURL(file) : null;
+        setSelectedFile({ file, preview, type });
+        e.target.value = '';
+    };
+
+    // Remove selected file
+    const removeFile = () => {
+        if (selectedFile?.preview) URL.revokeObjectURL(selectedFile.preview);
+        setSelectedFile(null);
+    };
+
+    // Handle sending message (text and/or file)
     const handleSendMessage = async (e) => {
         e.preventDefault();
         const text = inputText.trim();
-        if (!text || isSending) return;
+        if (!text && !selectedFile || isSending) return;
 
         setIsSending(true);
         try {
-            const payload = {
-                message: text,
-                channel: selectedDmUser ? null : selectedChannel,
-                receiver_id: selectedDmUser ? selectedDmUser.id : null,
-            };
+            const formData = new FormData();
+            if (text) formData.append('message', text);
+            formData.append('channel', selectedDmUser ? '' : (selectedChannel || 'general'));
+            if (selectedDmUser) formData.append('receiver_id', selectedDmUser.id);
+            if (selectedFile) formData.append('file', selectedFile.file);
 
-            const res = await axios.post(route('chat.send'), payload);
+            const res = await axios.post(route('chat.send'), formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
             if (res.data && res.data.success) {
                 setMessages((prev) => [...prev, res.data.message]);
                 setInputText('');
+                removeFile();
             }
         } catch (err) {
             console.error('Failed to send message:', err);
@@ -103,6 +153,37 @@ export default function ChatIndex({
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage(e);
+        }
+    };
+
+    // Save edited message
+    const handleEditMessage = async (msgId) => {
+        const text = editText.trim();
+        if (!text) return;
+        try {
+            const res = await axios.put(route('chat.edit', msgId), { message: text });
+            if (res.data?.success) {
+                setMessages((prev) =>
+                    prev.map((m) => (m.id === msgId ? { ...m, message: res.data.message.message } : m))
+                );
+                setEditingMsgId(null);
+                setEditText('');
+            }
+        } catch (err) {
+            console.error('Edit failed:', err);
+        }
+    };
+
+    // Delete message
+    const handleDeleteMessage = async (msgId) => {
+        if (!window.confirm('Is message ko delete karna chahte hain?')) return;
+        try {
+            const res = await axios.delete(route('chat.delete', msgId));
+            if (res.data?.success) {
+                setMessages((prev) => prev.filter((m) => m.id !== msgId));
+            }
+        } catch (err) {
+            console.error('Delete failed:', err);
         }
     };
 
@@ -130,13 +211,14 @@ export default function ChatIndex({
         >
             <Head title="Internal Team Chat" />
 
-            <div className="py-4 sm:py-6 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row h-[calc(100vh-175px)] min-h-[550px]">
+            {/* Chat container — fixed height via calc, independent of parent */}
+            <div style={{ height: 'calc(100vh - 10rem)' }} className="w-full flex flex-col">
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row flex-1 min-h-0">
                     
                     {/* ========================================================= */}
                     {/* LEFT PANEL: Channels & Team Members                       */}
                     {/* ========================================================= */}
-                    <div className="w-full md:w-80 border-r border-slate-200 flex flex-col bg-slate-50/60 shrink-0">
+                    <div className="w-full md:w-80 border-r border-slate-200 flex flex-col bg-slate-50/60 shrink-0 h-full overflow-hidden">
                         {/* Team Chat Branding */}
                         <div className="p-4 border-b border-slate-200 bg-white">
                             <div className="flex items-center gap-2.5">
@@ -151,7 +233,7 @@ export default function ChatIndex({
                         </div>
 
                         {/* Scrollable list */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-5">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-5 min-h-0">
                             {/* Channels Section */}
                             <div>
                                 <div className="flex items-center justify-between px-2 mb-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
@@ -258,7 +340,7 @@ export default function ChatIndex({
                     {/* ========================================================= */}
                     {/* RIGHT PANEL: Chat Conversation Area                       */}
                     {/* ========================================================= */}
-                    <div className="flex-1 flex flex-col bg-white">
+                    <div className="flex-1 flex flex-col bg-white min-h-0 overflow-hidden">
                         {/* Chat Header */}
                         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white">
                             <div className="flex items-center gap-2.5">
@@ -287,7 +369,7 @@ export default function ChatIndex({
                         </div>
 
                         {/* Messages Thread */}
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/40">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/40 min-h-0">
                             {messages.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center py-16">
                                     <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
@@ -318,21 +400,130 @@ export default function ChatIndex({
                                                 {senderName.charAt(0).toUpperCase()}
                                             </div>
 
-                                            {/* Message bubble */}
-                                            <div className={`max-w-md sm:max-w-lg ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                                <div className="flex items-center gap-1.5 mb-1 px-1">
+                                            {/* Message bubble with hover edit/delete */}
+                                            <div className={`max-w-md sm:max-w-lg ${isMe ? 'items-end' : 'items-start'} flex flex-col group`}>
+                                                {/* Name + time + action buttons row */}
+                                                <div className={`flex items-center gap-1.5 mb-1 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                                     <span className="text-[11px] font-bold text-slate-700">{senderName}</span>
                                                     <span className="text-[10px] text-slate-400">{timeStr}</span>
+
+                                                    {/* Edit / Delete — only for own messages, show on group hover */}
+                                                    {isMe && editingMsgId !== msg.id && (
+                                                        <div className="hidden group-hover:flex items-center gap-0.5 ml-1">
+                                                            <button
+                                                                onClick={() => { setEditingMsgId(msg.id); setEditText(msg.message || ''); }}
+                                                                className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteMessage(msg.id)}
+                                                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div
-                                                    className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
-                                                        isMe
-                                                            ? 'bg-blue-600 text-white rounded-tr-none'
-                                                            : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
-                                                    }`}
-                                                >
-                                                    {msg.message}
-                                                </div>
+
+                                                {/* File attachment display */}
+                                                {msg.file_path && (
+                                                    <div className="mb-1">
+                                                        {msg.file_type === 'image' ? (
+                                                            <div className="relative group/img inline-block">
+                                                                <a href={msg.file_path} target="_blank" rel="noreferrer">
+                                                                    <img
+                                                                        src={msg.file_path}
+                                                                        alt={msg.file_name || 'Image'}
+                                                                        className="max-w-[240px] max-h-[200px] rounded-2xl object-cover shadow-sm border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    />
+                                                                </a>
+                                                                {/* Download button on image hover */}
+                                                                <a
+                                                                    href={msg.file_path}
+                                                                    download={msg.file_name || 'image'}
+                                                                    className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
+                                                                    title="Download"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Download className="w-3.5 h-3.5" />
+                                                                </a>
+                                                            </div>
+                                                        ) : (
+                                                            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border text-xs font-medium ${
+                                                                isMe
+                                                                    ? 'bg-blue-500 text-white border-blue-400'
+                                                                    : 'bg-white text-slate-700 border-slate-200'
+                                                            }`}>
+                                                                <FileText className="w-4 h-4 shrink-0" />
+                                                                <a
+                                                                    href={msg.file_path}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="truncate max-w-[160px] hover:underline"
+                                                                >
+                                                                    {msg.file_name || 'Document.pdf'}
+                                                                </a>
+                                                                {/* Download button for PDF */}
+                                                                <a
+                                                                    href={msg.file_path}
+                                                                    download={msg.file_name || 'document.pdf'}
+                                                                    className={`ml-auto p-1 rounded-lg transition-colors shrink-0 ${
+                                                                        isMe
+                                                                            ? 'text-white/70 hover:text-white hover:bg-white/20'
+                                                                            : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                                                    }`}
+                                                                    title="Download"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Download className="w-3.5 h-3.5" />
+                                                                </a>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Inline edit mode */}
+                                                {editingMsgId === msg.id ? (
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <input
+                                                            autoFocus
+                                                            value={editText}
+                                                            onChange={(e) => setEditText(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleEditMessage(msg.id);
+                                                                if (e.key === 'Escape') { setEditingMsgId(null); setEditText(''); }
+                                                            }}
+                                                            className="flex-1 text-xs sm:text-sm rounded-xl border border-blue-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleEditMessage(msg.id)}
+                                                            className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                                                            title="Save"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setEditingMsgId(null); setEditText(''); }}
+                                                            className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ) : msg.message ? (
+                                                    <div
+                                                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
+                                                            isMe
+                                                                ? 'bg-blue-600 text-white rounded-tr-none'
+                                                                : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
+                                                        }`}
+                                                    >
+                                                        {msg.message}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         </div>
                                     );
@@ -341,9 +532,50 @@ export default function ChatIndex({
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {/* Text-Only Chat Input (No File Attachments Allowed) */}
-                        <div className="p-3 sm:p-4 border-t border-slate-200 bg-white">
-                            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                        {/* Chat Input with File Attachment */}
+                        <div className="border-t border-slate-200 bg-white">
+
+                            {/* File preview strip */}
+                            {selectedFile && (
+                                <div className="px-4 pt-3 pb-0 flex items-center gap-2">
+                                    <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 max-w-xs">
+                                        {selectedFile.type === 'image' ? (
+                                            <img src={selectedFile.preview} alt="preview" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                                        ) : (
+                                            <FileText className="w-5 h-5 text-rose-500 shrink-0" />
+                                        )}
+                                        <span className="text-xs text-slate-600 truncate max-w-[160px]">{selectedFile.file.name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={removeFile}
+                                            className="ml-1 text-slate-400 hover:text-slate-600 shrink-0"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Input row */}
+                            <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-3 sm:p-4">
+
+                                {/* Hidden file inputs */}
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, 'image')}
+                                />
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".pdf"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, 'pdf')}
+                                />
+
+                                {/* Text input with icons inside on the right */}
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
@@ -351,20 +583,44 @@ export default function ChatIndex({
                                         onChange={(e) => setInputText(e.target.value)}
                                         onKeyDown={handleKeyDown}
                                         placeholder={`Message ${currentTitle}... (Press Enter to send)`}
-                                        className="w-full text-xs sm:text-sm rounded-2xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                                        className="w-full text-xs sm:text-sm rounded-2xl border border-slate-300 px-4 py-3 pr-20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                                     />
+                                    {/* Icons inside input — right side */}
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                        {/* Image attach button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => imageInputRef.current?.click()}
+                                            title="Attach Image"
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                        >
+                                            <ImageIcon className="w-4 h-4" />
+                                        </button>
+                                        {/* PDF / File attach button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            title="Attach PDF"
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                        >
+                                            <Paperclip className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {/* Send button */}
                                 <button
                                     type="submit"
-                                    disabled={!inputText.trim() || isSending}
+                                    disabled={(!inputText.trim() && !selectedFile) || isSending}
                                     className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-md transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5 shrink-0"
                                 >
                                     <Send className="w-4 h-4" />
                                     <span>Send</span>
                                 </button>
                             </form>
-                            <p className="text-[11px] text-slate-400 mt-1.5 px-1">
-                                💬 Strictly text communication enabled. File sharing is disabled for internal security.
+
+                            <p className="text-[11px] text-slate-400 pb-2 px-5">
+                                📎 Attach images or PDF files along with your message.
                             </p>
                         </div>
                     </div>

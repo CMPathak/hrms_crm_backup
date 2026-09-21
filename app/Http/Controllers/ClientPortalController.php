@@ -99,7 +99,8 @@ class ClientPortalController extends Controller
             });
         }
 
-        $clients = $clientsQuery->paginate(15)->withQueryString();
+        $limit = $request->input('per_page', 5);
+        $clients = $clientsQuery->paginate($limit)->withQueryString();
 
         // Count metrics for admin
         $totalClients = Customer::count();

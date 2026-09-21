@@ -216,9 +216,9 @@ class DashboardController extends Controller
         
         $salesProjects = $salesQuery->orderBy('p.id', 'desc')->limit(15)->get();
 
-        // Expiring Domains in Next 30 Days
+        // Expiring Domains in Next 60 Days
         $today = Carbon::today()->toDateString();
-        $thirtyDays = Carbon::today()->addDays(30)->toDateString();
+        $sixtyDays = Carbon::today()->addDays(60)->toDateString();
         $domainsQuery = DB::table('domains_hosting as dh')
             ->join('customers as c', 'dh.customer_id', '=', 'c.id')
             ->leftJoin('projects as p', 'dh.project_id', '=', 'p.id')
@@ -227,7 +227,7 @@ class DashboardController extends Controller
                 'dh.id', 'dh.domain_name', 'dh.domain_expiry_date',
                 'c.company_name', 'c.client_name'
             ])
-            ->whereBetween('dh.domain_expiry_date', [$today, $thirtyDays]);
+            ->whereBetween('dh.domain_expiry_date', [$today, $sixtyDays]);
 
         if ($currentUser && !$currentUser->isAdmin()) {
             $domainsQuery->where(function ($q) use ($currentUser) {

@@ -2,15 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import HmsLayout from '@/Layouts/HmsLayout';
 import MetricCards from '@/Components/MetricCards';
-import { 
-    FolderPlus, 
-    Search, 
-    Calendar, 
-    User, 
-    CheckCircle2, 
-    Clock, 
-    X, 
-    ChevronLeft, 
+import {
+    FolderPlus,
+    Search,
+    Calendar,
+    User,
+    CheckCircle2,
+    Clock,
+    X,
+    ChevronLeft,
     ChevronRight,
     ExternalLink,
     Building,
@@ -31,14 +31,16 @@ import {
     Edit,
     RotateCcw,
     SlidersHorizontal,
-    Check
+    Check,
+    Download,
+    Upload
 } from 'lucide-react';
 
-export default function Index({ 
-    projects, 
-    metrics, 
-    currentFilter = 'all', 
-    customers = [], 
+export default function Index({
+    projects,
+    metrics,
+    currentFilter = 'all',
+    customers = [],
     users = [],
     filters = {}
 }) {
@@ -58,11 +60,32 @@ export default function Index({
 
     // Filter states from props / URL
     const [search, setSearch] = useState(filters.search || '');
+    const fileInputRef = useRef(null);
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        router.post(route('projects.import'), formData, {
+            onSuccess: () => {
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            },
+            preserveScroll: true,
+            forceFormData: true,
+        });
+    };
     const [statusFilter, setStatusFilter] = useState(filters.status || '');
     const [serviceFilter, setServiceFilter] = useState(filters.service || '');
     const [priorityFilter, setPriorityFilter] = useState(filters.priority || '');
     const [teamFilter, setTeamFilter] = useState(filters.team || '');
-    const [perPage, setPerPage] = useState(filters.per_page || 50);
+    const [perPage, setPerPage] = useState(5);
 
     // Modals state
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -232,6 +255,7 @@ export default function Index({
         social_media_login: '',
         issue_comment: '',
         description: '',
+        include_logo_registration: false,
     });
 
     const handleOpenEdit = (p) => {
@@ -421,6 +445,29 @@ export default function Index({
 
                 {canCreateProject && (
                     <div className="flex items-center gap-3">
+                        <a
+                            href={route('projects.export')}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
+                        >
+                            <Download className="w-4 h-4" />
+                            Export
+                        </a>
+                        
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                            onChange={handleFileChange}
+                        />
+                        <button
+                            onClick={handleImportClick}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
+                        >
+                            <Upload className="w-4 h-4" />
+                            Import
+                        </button>
+
                         <button
                             onClick={() => setCreateModalOpen(true)}
                             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
@@ -521,32 +568,8 @@ export default function Index({
                         </select>
                     </div>
 
-                    {/* Row 2: Per Page Selector & Reset Filters */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
-                                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                                    <span className="font-mono text-slate-500 font-bold">½≡</span> Per Page:
-                                </span>
-                                <select
-                                    value={perPage}
-                                    onChange={(e) => {
-                                        setPerPage(e.target.value);
-                                        applyFilters({ per_page: e.target.value });
-                                    }}
-                                    className="text-xs font-semibold bg-transparent border-0 focus:ring-0 text-slate-800 cursor-pointer p-0 pr-4"
-                                >
-                                    <option value="10">10 per page</option>
-                                    <option value="25">25 per page</option>
-                                    <option value="50">50 per page (Fast)</option>
-                                    <option value="100">100 per page</option>
-                                    <option value="200">200 per page</option>
-                                    <option value="500">500 per page</option>
-                                    <option value="1000">1000 per page</option>
-                                    <option value="2000">Show All Entries</option>
-                                </select>
-                            </div>
-                        </div>
+                    {/* Row 2: Reset Filters */}
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-100">
 
                         <div className="flex items-center gap-2">
                             <button
@@ -568,17 +591,53 @@ export default function Index({
                 </form>
             </div>
 
-            {/* TOP SYNCED HORIZONTAL SCROLLBAR (Double Scroll from hmsN) */}
-            <div
-                ref={topScrollRef}
-                onScroll={handleTopScroll}
-                className="overflow-x-auto overflow-y-hidden mb-2 rounded-lg bg-slate-100/90 border border-slate-200/80 h-3 cursor-ew-resize shadow-inner"
-            >
-                <div style={{ width: `${Math.max(tableScrollWidth, 4200)}px`, height: '1px' }}>&nbsp;</div>
-            </div>
-
             {/* PROJECTS TABLE (31 Columns Matching hmsN with Horizontal Scrolling) */}
             <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden mb-6">
+                {/* TOP PAGINATION */}
+                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm text-slate-600 bg-slate-50/50">
+                    <div>
+                        Showing {projects?.from ?? 0} to {projects?.to ?? 0} of {projects?.total ?? 0} entries
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={perPage}
+                                onChange={(e) => {
+                                    setPerPage(e.target.value);
+                                    applyFilters({ per_page: e.target.value });
+                                }}
+                                className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                            >
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                                <option value="1000">1000</option>
+                                <option value="2000">Show All Entries</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Link
+                                href={projects?.prev_page_url || '#'}
+                                preserveScroll
+                                className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${projects?.prev_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Link>
+                            <Link
+                                href={projects?.next_page_url || '#'}
+                                preserveScroll
+                                className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${projects?.next_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+
                 <div
                     ref={tableWrapperRef}
                     onScroll={handleTableScroll}
@@ -587,41 +646,41 @@ export default function Index({
                     <table className="w-full text-left text-xs border-collapse min-w-[4200px]">
                         <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
                             <tr>
-                                <th className="py-3.5 px-4 min-w-[130px]">Table ID</th>
-                                <th className="py-3.5 px-4 min-w-[200px]">Client Name</th>
-                                <th className="py-3.5 px-4 min-w-[220px]">Company Name</th>
-                                <th className="py-3.5 px-4 min-w-[220px]">Customer Email</th>
-                                <th className="py-3.5 px-4 min-w-[180px]">Contact Person</th>
-                                <th className="py-3.5 px-4 min-w-[170px]">Phone Number</th>
-                                <th className="py-3.5 px-4 min-w-[170px]">Business Category</th>
-                                <th className="py-3.5 px-4 min-w-[240px]">Address</th>
-                                <th className="py-3.5 px-4 min-w-[220px]">Project Name</th>
+                                <th className="py-2 px-4 min-w-[130px]">Table ID</th>
+                                <th className="py-2 px-4 min-w-[200px]">Client Name</th>
+                                <th className="py-2 px-4 min-w-[220px]">Company Name</th>
+                                <th className="py-2 px-4 min-w-[220px]">Customer Email</th>
+                                <th className="py-2 px-4 min-w-[180px]">Contact Person</th>
+                                <th className="py-2 px-4 min-w-[170px]">Phone Number</th>
+                                <th className="py-2 px-4 min-w-[170px]">Business Category</th>
+                                <th className="py-2 px-4 min-w-[240px]">Address</th>
+                                <th className="py-2 px-4 min-w-[220px]">Project Name</th>
 
-                                <th className="py-3.5 px-4 min-w-[120px]">Start Date</th>
-                                <th className="py-3.5 px-4 min-w-[120px]">Due Date</th>
-                                <th className="py-3.5 px-4 min-w-[150px]">Payment Info</th>
-                                <th className="py-3.5 px-4 min-w-[170px]">Developer</th>
-                                <th className="py-3.5 px-4 min-w-[170px]">SEO Person</th>
-                                <th className="py-3.5 px-4 min-w-[190px]">Domain Name</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">Renewal Date</th>
-                                <th className="py-3.5 px-4 min-w-[180px]">Sales Person</th>
-                                <th className="py-3.5 px-4 min-w-[200px]">Sales Person Email</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">Package LMH</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">Status Details</th>
-                                <th className="py-3.5 px-4 min-w-[200px]">Banner & Reel & DVC</th>
-                                <th className="py-3.5 px-4 min-w-[150px]">GMB Access</th>
-                                <th className="py-3.5 px-4 min-w-[200px]">Total Number of Keywords</th>
-                                <th className="py-3.5 px-4 min-w-[260px]">Approved Keywords</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">First page</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">Report Send</th>
-                                <th className="py-3.5 px-4 min-w-[140px]">Total Report</th>
-                                <th className="py-3.5 px-4 min-w-[180px]">Adword and Sponser</th>
-                                <th className="py-3.5 px-4 min-w-[260px]">Google Analytics / Webmaster Email Id</th>
-                                <th className="py-3.5 px-4 min-w-[240px]">Product Details</th>
-                                <th className="py-3.5 px-4 min-w-[240px]">FTP/ Login Details</th>
-                                <th className="py-3.5 px-4 min-w-[240px]">Social Media Login</th>
-                                <th className="py-3.5 px-4 min-w-[260px]">Issue & Comment</th>
-                                <th className="py-3.5 px-4 text-center min-w-[220px] sticky right-0 bg-slate-50 border-l border-slate-200 shadow-[-4px_0_12px_rgba(0,0,0,0.06)] z-20">
+                                <th className="py-2 px-4 min-w-[120px]">Start Date</th>
+                                <th className="py-2 px-4 min-w-[120px]">Due Date</th>
+                                <th className="py-2 px-4 min-w-[150px]">Payment Info</th>
+                                <th className="py-2 px-4 min-w-[170px]">Developer</th>
+                                <th className="py-2 px-4 min-w-[170px]">SEO Person</th>
+                                <th className="py-2 px-4 min-w-[190px]">Domain Name</th>
+                                <th className="py-2 px-4 min-w-[140px]">Renewal Date</th>
+                                <th className="py-2 px-4 min-w-[180px]">Sales Person</th>
+                                <th className="py-2 px-4 min-w-[200px]">Sales Person Email</th>
+                                <th className="py-2 px-4 min-w-[140px]">Package LMH</th>
+                                <th className="py-2 px-4 min-w-[140px]">Status Details</th>
+                                <th className="py-2 px-4 min-w-[200px]">Banner & Reel & DVC</th>
+                                <th className="py-2 px-4 min-w-[150px]">GMB Access</th>
+                                <th className="py-2 px-4 min-w-[200px]">Total Number of Keywords</th>
+                                <th className="py-2 px-4 min-w-[260px]">Approved Keywords</th>
+                                <th className="py-2 px-4 min-w-[140px]">First page</th>
+                                <th className="py-2 px-4 min-w-[140px]">Report Send</th>
+                                <th className="py-2 px-4 min-w-[140px]">Total Report</th>
+                                <th className="py-2 px-4 min-w-[180px]">Adword and Sponser</th>
+                                <th className="py-2 px-4 min-w-[260px]">Google Analytics / Webmaster Email Id</th>
+                                <th className="py-2 px-4 min-w-[240px]">Product Details</th>
+                                <th className="py-2 px-4 min-w-[240px]">FTP/ Login Details</th>
+                                <th className="py-2 px-4 min-w-[240px]">Social Media Login</th>
+                                <th className="py-2 px-4 min-w-[260px]">Issue & Comment</th>
+                                <th className="py-2 px-4 text-center min-w-[220px] sticky right-0 bg-slate-50 border-l border-slate-200 shadow-[-4px_0_12px_rgba(0,0,0,0.06)] z-20">
                                     <div className="flex items-center justify-center gap-1.5 font-bold text-slate-800">
                                         <span className="text-slate-400 text-[10px]">♦</span>
                                         <span>Actions</span>
@@ -641,24 +700,24 @@ export default function Index({
                                 projects.data.map((p) => (
                                     <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                                         {/* 1. Table ID */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             <span className="inline-block px-2.5 py-1 rounded-md text-xs font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                                 {p.custom_project_id || `PRJ-${p.id}`}
                                             </span>
                                         </td>
 
                                         {/* 2. Client Name */}
-                                        <td className="py-3 px-4 font-bold text-slate-900">
+                                        <td className="py-1.5 px-4 font-bold text-slate-900">
                                             {p.customer?.client_name || '-'}
                                         </td>
 
                                         {/* 3. Company Name */}
-                                        <td className="py-3 px-4 font-semibold text-slate-800">
+                                        <td className="py-1.5 px-4 font-semibold text-slate-800">
                                             {p.customer?.company_name || '-'}
                                         </td>
 
                                         {/* 4. Customer Email */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.customer?.email ? (
                                                 <a href={`mailto:${p.customer.email}`} className="text-indigo-600 hover:underline">
                                                     {p.customer.email}
@@ -667,12 +726,12 @@ export default function Index({
                                         </td>
 
                                         {/* 5. Contact Person */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.customer?.contact_person || '-'}
                                         </td>
 
                                         {/* 6. Phone Number */}
-                                        <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 text-slate-700 whitespace-nowrap">
                                             {p.customer?.mobile ? (
                                                 <a href={`tel:${p.customer.mobile}`} className="text-indigo-600 hover:underline">
                                                     {p.customer.mobile}
@@ -681,55 +740,55 @@ export default function Index({
                                         </td>
 
                                         {/* 7. Business Category */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-medium">
                                                 {p.customer?.business_category || '-'}
                                             </span>
                                         </td>
 
                                         {/* 8. Address */}
-                                        <td className="py-3 px-4 text-slate-600 max-w-[240px] truncate" title={p.customer?.address || ''}>
+                                        <td className="py-1.5 px-4 text-slate-600 max-w-[240px] truncate" title={p.customer?.address || ''}>
                                             {p.customer?.address || '-'}
                                         </td>
 
                                         {/* 9. Project Name */}
-                                        <td className="py-3 px-4 font-semibold text-slate-800">
+                                        <td className="py-1.5 px-4 font-semibold text-slate-800">
                                             {p.project_name || '-'}
                                         </td>
 
 
 
                                         {/* 12. Start Date */}
-                                        <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                                        <td className="py-1.5 px-4 whitespace-nowrap text-slate-700">
                                             {p.start_date ? p.start_date.split('T')[0] : '-'}
                                         </td>
 
                                         {/* 13. Due Date */}
-                                        <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                                        <td className="py-1.5 px-4 whitespace-nowrap text-slate-700">
                                             {p.due_date ? p.due_date.split('T')[0] : '-'}
                                         </td>
 
                                         {/* 14. Payment Info */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.payment_info || '-'}
                                         </td>
 
                                         {/* 15. Developer */}
-                                        <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 font-medium text-slate-800 whitespace-nowrap">
                                             {p.developer || p.assignment?.developer?.name || (
                                                 <span className="text-slate-400 italic font-normal">Unassigned</span>
                                             )}
                                         </td>
 
                                         {/* 16. SEO Person */}
-                                        <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 font-medium text-slate-800 whitespace-nowrap">
                                             {p.seo_person || p.assignment?.seo_executive?.name || (
                                                 <span className="text-slate-400 italic font-normal">Unassigned</span>
                                             )}
                                         </td>
 
                                         {/* 17. Domain Name */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             {(p.domain_name || p.domain_hosting?.domain_name) ? (
                                                 <a
                                                     href={`http://${p.domain_name || p.domain_hosting?.domain_name}`}
@@ -746,7 +805,7 @@ export default function Index({
                                         </td>
 
                                         {/* 18. Renewal Date */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             {(p.renewal_date || p.domain_hosting?.renewal_date) ? (
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono">
                                                     <Calendar className="w-3 h-3 text-indigo-500" />
@@ -758,12 +817,12 @@ export default function Index({
                                         </td>
 
                                         {/* 19. Sales Person */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.sales_person_name || '-'}
                                         </td>
 
                                         {/* 20. Sales Person Email */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.sales_person_email ? (
                                                 <a href={`mailto:${p.sales_person_email}`} className="text-indigo-600 hover:underline">
                                                     {p.sales_person_email}
@@ -772,14 +831,14 @@ export default function Index({
                                         </td>
 
                                         {/* 21. Package LMH */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold">
                                                 {p.package_lmh || '-'}
                                             </span>
                                         </td>
 
                                         {/* 22. Status Details */}
-                                        <td className="py-3 px-4 whitespace-nowrap">
+                                        <td className="py-1.5 px-4 whitespace-nowrap">
                                             <span
                                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusBadge(
                                                     p.status
@@ -790,22 +849,22 @@ export default function Index({
                                         </td>
 
                                         {/* 23. Banner & Reel & DVC */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {((p.banner_reel || '') + ' ' + (p.dvc || '')).trim() || '-'}
                                         </td>
 
                                         {/* 24. GMB Access */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.gmb_access_desc || '-'}
                                         </td>
 
                                         {/* 25. Total Number of Keywords */}
-                                        <td className="py-3 px-4 text-slate-700 font-semibold">
+                                        <td className="py-1.5 px-4 text-slate-700 font-semibold">
                                             {p.total_keyword || '-'}
                                         </td>
 
                                         {/* 26. Approved Keywords (Scrollable) */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-1.5 px-4">
                                             {p.approved_keywords ? (
                                                 <div className="max-h-20 overflow-y-auto p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                                                     {p.approved_keywords}
@@ -816,32 +875,32 @@ export default function Index({
                                         </td>
 
                                         {/* 27. First page */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.first_page || '-'}
                                         </td>
 
                                         {/* 28. Report Send */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.report_send || '-'}
                                         </td>
 
                                         {/* 29. Total Report */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.total_report || '-'}
                                         </td>
 
                                         {/* 30. Adword and Sponser */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.adword_sponser || '-'}
                                         </td>
 
                                         {/* 31. Google Analytics / Webmaster Email Id */}
-                                        <td className="py-3 px-4 text-slate-700">
+                                        <td className="py-1.5 px-4 text-slate-700">
                                             {p.analytics_webmaster_email || '-'}
                                         </td>
 
                                         {/* 32. Product Details */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-1.5 px-4">
                                             {p.product_details ? (
                                                 <div className="max-h-20 overflow-y-auto p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                                                     {p.product_details}
@@ -852,7 +911,7 @@ export default function Index({
                                         </td>
 
                                         {/* 33. FTP/ Login Details */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-1.5 px-4">
                                             {p.ftp_login_details ? (
                                                 <div className="max-h-20 overflow-y-auto p-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                                                     {p.ftp_login_details}
@@ -863,7 +922,7 @@ export default function Index({
                                         </td>
 
                                         {/* 34. Social Media Login */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-1.5 px-4">
                                             {p.social_media_login ? (
                                                 <div className="max-h-20 overflow-y-auto p-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                                                     {p.social_media_login}
@@ -874,7 +933,7 @@ export default function Index({
                                         </td>
 
                                         {/* 35. Issue & Comment (Scrollable) */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-1.5 px-4">
                                             {(p.issue_comment || p.comments) ? (
                                                 <div className="max-h-20 overflow-y-auto p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                                                     {p.issue_comment || p.comments}
@@ -885,7 +944,7 @@ export default function Index({
                                         </td>
 
                                         {/* 31. ACTIONS (5 Buttons Matching Image 2, Sticky Right) */}
-                                        <td className="py-3.5 px-4 text-center whitespace-nowrap sticky right-0 bg-white/95 backdrop-blur-xs border-l border-slate-200 shadow-[-4px_0_12px_rgba(0,0,0,0.06)] z-10">
+                                        <td className="py-2 px-4 text-center whitespace-nowrap sticky right-0 bg-white/95 backdrop-blur-xs border-l border-slate-200 shadow-[-4px_0_12px_rgba(0,0,0,0.06)] z-10">
                                             <div className="inline-flex items-center gap-1.5">
                                                 {/* 1. Yellow/Amber Edit Button */}
                                                 <button
@@ -952,32 +1011,48 @@ export default function Index({
                 </div>
 
                 {/* PAGINATION (Dynamic per-page and page links) */}
-                <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
-                    <div className="text-xs text-slate-600 font-medium">
-                        Showing <span className="font-bold text-slate-800">{projects?.from ?? 0}</span> to{' '}
-                        <span className="font-bold text-slate-800">{projects?.to ?? 0}</span> of{' '}
-                        <span className="font-bold text-slate-800">{projects?.total ?? 0}</span> entries
+                <div className="p-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-4 bg-white text-sm text-slate-600">
+                    <div>
+                        Showing {projects?.from ?? 0} to {projects?.to ?? 0} of {projects?.total ?? 0} entries
                     </div>
-
-                    {projects?.links && projects.links.length > 3 && (
-                        <div className="flex items-center gap-1 flex-wrap">
-                            {projects.links.map((link, lIdx) => (
-                                <Link
-                                    key={lIdx}
-                                    href={link.url || '#'}
-                                    preserveScroll
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                                        link.active
-                                            ? 'bg-indigo-600 text-white shadow-xs'
-                                            : link.url
-                                            ? 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                                            : 'text-slate-300 pointer-events-none'
-                                    }`}
-                                />
-                            ))}
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={perPage}
+                                onChange={(e) => {
+                                    setPerPage(e.target.value);
+                                    applyFilters({ per_page: e.target.value });
+                                }}
+                                className="text-sm border border-slate-200 rounded-lg py-1 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white cursor-pointer"
+                            >
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                                <option value="1000">1000</option>
+                                <option value="2000">Show All Entries</option>
+                            </select>
                         </div>
-                    )}
+                        <div className="flex items-center gap-1">
+                            <Link
+                                href={projects?.prev_page_url || '#'}
+                                preserveScroll
+                                className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${projects?.prev_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Link>
+                            <Link
+                                href={projects?.next_page_url || '#'}
+                                preserveScroll
+                                className={`px-2 py-1 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition-colors ${projects?.next_page_url ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1320,11 +1395,23 @@ export default function Index({
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Design Status</label>
                                         <input
                                             type="text"
-                                            value={createForm.data.design_status}
+                                            value={createForm.data.design_status || ''}
                                             onChange={(e) => createForm.setData('design_status', e.target.value)}
                                             placeholder="e.g. In Progress"
                                             className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl"
                                         />
+                                    </div>
+                                    <div className="flex items-center mt-6">
+                                        <input
+                                            type="checkbox"
+                                            id="include_logo_registration"
+                                            checked={createForm.data.include_logo_registration}
+                                            onChange={(e) => createForm.setData('include_logo_registration', e.target.checked)}
+                                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                                        />
+                                        <label htmlFor="include_logo_registration" className="ml-2 block text-sm font-medium text-slate-700">
+                                            Include Logo Registration
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -1822,11 +1909,23 @@ export default function Index({
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Design Status</label>
                                         <input
                                             type="text"
-                                            value={editForm.data.design_status}
+                                            value={editForm.data.design_status || ''}
                                             onChange={(e) => editForm.setData('design_status', e.target.value)}
                                             placeholder="e.g. In Progress"
                                             className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20"
                                         />
+                                    </div>
+                                    <div className="flex items-center mt-6">
+                                        <input
+                                            type="checkbox"
+                                            id="edit_include_logo_registration"
+                                            checked={editForm.data.include_logo_registration}
+                                            onChange={(e) => editForm.setData('include_logo_registration', e.target.checked)}
+                                            className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-slate-300 rounded"
+                                        />
+                                        <label htmlFor="edit_include_logo_registration" className="ml-2 block text-sm font-medium text-slate-700">
+                                            Include Logo Registration
+                                        </label>
                                     </div>
                                 </div>
                             </div>

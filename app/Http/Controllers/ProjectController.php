@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\LogoRegistration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -130,7 +131,7 @@ class ProjectController extends Controller
         $priorityFilter = $request->query('priority');
         $teamFilter = $request->query('team');
         $search = $request->query('search');
-        $perPage = (int)$request->query('per_page', 50);
+        $perPage = (int)$request->query('per_page', 5);
         if ($perPage <= 0 || $perPage > 2000) {
             $perPage = 50;
         }
@@ -235,7 +236,6 @@ class ProjectController extends Controller
             'business_category' => 'nullable|string|max:100',
             'address' => 'nullable|string',
             'project_name' => 'required|string|max:150',
-
             'package_tier' => 'nullable|string|max:100',
             'start_date' => 'required|date',
             'due_date' => 'required|date',
@@ -266,6 +266,7 @@ class ProjectController extends Controller
             'issue_comment' => 'nullable|string',
             'comments' => 'nullable|string',
             'description' => 'nullable|string',
+            'include_logo_registration' => 'nullable|boolean',
         ]);
 
         // 1. Find or create Customer
@@ -382,9 +383,20 @@ class ProjectController extends Controller
                     'seo_executive_id' => $seoId,
                     'dev_status' => 'Assigned',
                     'dev_completion_pct' => 0,
-                    'assigned_date' => now(),
                 ]
             );
+        }
+
+        // 6. Handle Logo Registration Checkbox
+        if (!empty($validated['include_logo_registration']) && $validated['include_logo_registration']) {
+            LogoRegistration::create([
+                'project_id' => $project->id,
+                'customer_id' => $customer->id,
+                'brand_name' => $validated['project_name'],
+                'application_no' => 'APP-' . rand(1000000, 9999999),
+                'status' => 'Pending',
+                'applied_date' => now(),
+            ]);
         }
 
         return redirect()->back()->with('success', 'Project created successfully with customer and department details!');
@@ -423,6 +435,7 @@ class ProjectController extends Controller
             'comments' => 'nullable|string',
             'due_date' => 'nullable|date',
             'start_date' => 'nullable|date',
+            'include_logo_registration' => 'nullable|boolean',
         ]);
 
         if (isset($validated['issue_comment']) && !isset($validated['comments'])) {
@@ -488,6 +501,20 @@ class ProjectController extends Controller
             );
         }
 
+        // Handle Logo Registration Checkbox during update
+        if (!empty($validated['include_logo_registration']) && $validated['include_logo_registration']) {
+            LogoRegistration::firstOrCreate(
+                ['project_id' => $project->id],
+                [
+                    'customer_id' => $project->customer_id ?? 1,
+                    'brand_name' => $validated['project_name'],
+                    'application_no' => 'APP-' . rand(1000000, 9999999),
+                    'status' => 'Pending',
+                    'applied_date' => now(),
+                ]
+            );
+        }
+
         return redirect()->back()->with('success', 'Project updated successfully!');
     }
 
@@ -521,7 +548,6 @@ class ProjectController extends Controller
                 'seo_executive_id' => $validated['seo_executive_id'] ?? null,
                 'dev_status' => $validated['dev_status'] ?? 'Assigned',
                 'dev_completion_pct' => $validated['dev_completion_pct'] ?? 0,
-                'assigned_date' => now(),
             ]
         );
 
@@ -554,5 +580,85 @@ class ProjectController extends Controller
 
         $project->delete();
         return redirect()->back()->with('success', 'Project deleted successfully!');
+    }
+
+    public function export(Request $request)
+    {
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="projects_all.csv"',
+        ];
+
+        $columns = ["id", "custom_project_id", "customer_id", "project_name", "service_type", "package", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
+
+        $callback = function() use ($columns) {
+            $file = fopen('php://output', 'w');
+            // Write Header
+            fputcsv($file, $columns);
+
+            Project::chunk(500, function ($projects) use ($file, $columns) {
+                foreach ($projects as $row) {
+                    $data = [];
+                    foreach ($columns as $col) {
+                        $data[] = $row->{$col};
+                    }
+                    fputcsv($file, $data);
+                }
+            });
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function import(Request $request)
+    {
+        if (!$request->user() || !$request->user()->isAdmin()) {
+            return redirect()->back()->with('error', 'Unauthorized. Only Admin can import projects.');
+        }
+
+        $request->validate([
+            'file' => 'required|mimes:csv,txt|max:2097152', // 2GB in KB
+        ]);
+
+        $file = $request->file('file');
+        $handle = fopen($file->path(), 'r');
+
+        $columns = ["id", "custom_project_id", "customer_id", "project_name", "service_type", "package", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
+
+        $header = null;
+        $chunk = [];
+        while (($row = fgetcsv($handle, 10000, ',')) !== false) {
+            if (!$header) {
+                $header = $row;
+                continue;
+            }
+
+            $projectData = [];
+            foreach ($columns as $index => $col) {
+                if ($col === 'id' || $col === 'created_at') continue;
+                
+                if (isset($row[$index]) && trim($row[$index]) !== '') {
+                    $projectData[$col] = $row[$index];
+                }
+            }
+
+            if (!empty($projectData['project_name'])) {
+                $chunk[] = $projectData;
+            }
+
+            if (count($chunk) >= 500) {
+                Project::insert($chunk);
+                $chunk = [];
+            }
+        }
+        
+        if (count($chunk) > 0) {
+            Project::insert($chunk);
+        }
+        
+        fclose($handle);
+
+        return redirect()->back()->with('success', 'Projects imported successfully with all columns!');
     }
 }

@@ -84,7 +84,11 @@ class TaskController extends Controller
         ];
 
         $projects = Project::select('id', 'project_name')->orderBy('project_name')->get();
-        $users = User::select('id', 'name', 'email')->orderBy('name')->get();
+        $usersQuery = User::select('id', 'name', 'email')->orderBy('name');
+        if (!$isManager) {
+            $usersQuery->where('id', $currentUser->id);
+        }
+        $users = $usersQuery->get();
 
         return Inertia::render('Tasks/Index', [
             'tasks' => $tasks,
@@ -107,6 +111,11 @@ class TaskController extends Controller
         $input = $request->all();
         if (empty($input['project_id'])) {
             $input['project_id'] = null;
+        }
+        
+        $currentUser = $request->user();
+        if (!$currentUser->isAdmin()) {
+            $input['assigned_to'] = $currentUser->id;
         }
 
         $validated = validator($input, [
@@ -133,6 +142,11 @@ class TaskController extends Controller
         $input = $request->all();
         if (empty($input['project_id'])) {
             $input['project_id'] = null;
+        }
+        
+        $currentUser = $request->user();
+        if (!$currentUser->isAdmin()) {
+            $input['assigned_to'] = $currentUser->id;
         }
 
         $validated = validator($input, [

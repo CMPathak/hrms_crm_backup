@@ -6,6 +6,7 @@ use App\Models\TeamMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -98,7 +99,7 @@ class TeamChatController extends Controller
     }
 
     /**
-     * API to send a strictly text-only message.
+     * API to send a message (text and/or file: image or PDF).
      */
     public function sendMessage(Request $request)
     {
@@ -109,23 +110,42 @@ class TeamChatController extends Controller
         }
 
         $request->validate([
-            'message' => 'required|string|max:2000',
-            'channel' => 'nullable|string|max:50',
+            'message'     => 'nullable|string|max:2000',
+            'channel'     => 'nullable|string|max:50',
             'receiver_id' => 'nullable|exists:users,id',
+            'file'        => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf|max:10240',
         ]);
 
-        $text = trim($request->message);
-        if (empty($text)) {
-            return response()->json(['error' => 'Message cannot be empty.'], 422);
+        $text = trim($request->message ?? '');
+        $filePath = null;
+        $fileName = null;
+        $fileType = null;
+
+        // Handle file upload
+        if ($request->hasFile('file') && $request->file('file')->isValid()) {
+            $file = $request->file('file');
+            $mime = $file->getMimeType();
+            $fileType = str_contains($mime, 'pdf') ? 'pdf' : 'image';
+            $fileName = $file->getClientOriginalName();
+            $stored = $file->store('chat-files', 'public');
+            $filePath = $stored ? Storage::url($stored) : null;
+        }
+
+        // Must have text or file
+        if (empty($text) && !$filePath) {
+            return response()->json(['error' => 'Message or file is required.'], 422);
         }
 
         $message = TeamMessage::create([
-            'sender_id' => $user->id,
+            'sender_id'   => $user->id,
             'receiver_id' => $request->receiver_id ?: null,
-            'channel' => $request->receiver_id ? null : ($request->channel ?: 'general'),
-            'message' => $text,
-            'is_read' => 0,
-            'created_at' => now(),
+            'channel'     => $request->receiver_id ? null : ($request->channel ?: 'general'),
+            'message'     => $text,
+            'file_path'   => $filePath,
+            'file_name'   => $fileName,
+            'file_type'   => $fileType,
+            'is_read'     => 0,
+            'created_at'  => now(),
         ]);
 
         $message->load('sender:id,name,role_id');
@@ -134,6 +154,62 @@ class TeamChatController extends Controller
             'success' => true,
             'message' => $message,
         ]);
+    }
+
+    /**
+     * Edit an existing message (only sender can edit).
+     */
+    public function editMessage(Request $request, $id)
+    {
+        $user = Auth::user();
+        $message = TeamMessage::find($id);
+
+        if (!$message) {
+            return response()->json(['error' => 'Message not found.'], 404);
+        }
+        if ($message->sender_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized.'], 403);
+        }
+
+        $request->validate([
+            'message' => 'required|string|max:2000',
+        ]);
+
+        $message->message = trim($request->message);
+        $message->save();
+
+        $message->load('sender:id,name,role_id');
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+        ]);
+    }
+
+    /**
+     * Delete a message (only sender can delete).
+     */
+    public function deleteMessage($id)
+    {
+        $user = Auth::user();
+        $message = TeamMessage::find($id);
+
+        if (!$message) {
+            return response()->json(['error' => 'Message not found.'], 404);
+        }
+        if ($message->sender_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized.'], 403);
+        }
+
+        // Delete file from storage if exists
+        if ($message->file_path) {
+            $relativePath = str_replace('/storage/', '', $message->file_path);
+            Storage::disk('public')->delete($relativePath);
+        }
+
+        $message->delete();
+
+        return response()->json(['success' => true]);
     }
 
     /**

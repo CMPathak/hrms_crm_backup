@@ -6,6 +6,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\AuditTrailController;
+use App\Http\Controllers\LogoRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -19,6 +20,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Projects Routes
+    Route::get('/projects/export', [ProjectController::class, 'export'])->name('projects.export');
+    Route::post('/projects/import', [ProjectController::class, 'import'])->name('projects.import');
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
@@ -39,6 +42,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/users/{user}', [UserManagementController::class, 'update'])->name('users.update');
     Route::patch('/users/{user}/status', [UserManagementController::class, 'updateStatus'])->name('users.updateStatus');
     Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
+
+    // Logo Registrations Route
+    Route::get('/logo-registrations', [LogoRegistrationController::class, 'index'])->name('logo-registrations.index');
 
     // Audit Trail Route (Admin Only)
     Route::get('/audit-trail', [AuditTrailController::class, 'index'])->name('audit-trail');
@@ -61,6 +67,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/team-chat', [\App\Http\Controllers\TeamChatController::class, 'index'])->name('chat.index');
     Route::get('/team-chat/messages', [\App\Http\Controllers\TeamChatController::class, 'getMessages'])->name('chat.messages');
     Route::post('/team-chat/messages', [\App\Http\Controllers\TeamChatController::class, 'sendMessage'])->name('chat.send');
+    Route::put('/team-chat/messages/{id}', [\App\Http\Controllers\TeamChatController::class, 'editMessage'])->name('chat.edit');
+    Route::delete('/team-chat/messages/{id}', [\App\Http\Controllers\TeamChatController::class, 'deleteMessage'])->name('chat.delete');
 
     // Live Notifications Summary Routes
     Route::get('/notifications/summary', [\App\Http\Controllers\NotificationController::class, 'summary'])->name('notifications.summary');
