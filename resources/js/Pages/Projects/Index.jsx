@@ -435,6 +435,12 @@ export default function Index({
                     <span className="text-sm font-medium">{flash.success}</span>
                 </div>
             )}
+            
+            {flash?.error && (
+                <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center gap-2.5 shadow-xs">
+                    <span className="text-sm font-medium">{flash.error}</span>
+                </div>
+            )}
 
             {/* Top Bar Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

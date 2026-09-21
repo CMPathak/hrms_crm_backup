@@ -633,59 +633,189 @@ class ProjectController extends Controller
             return redirect()->back()->with('error', 'Unauthorized. Only Admin can import projects.');
         }
 
+        // Allow handling of large files (e.g. 5000+ rows) without timing out
+        set_time_limit(0);
+        ini_set('memory_limit', '-1');
+
         $request->validate([
-            'file' => 'required|mimes:csv,txt|max:2097152', // 2GB in KB
+            'file' => 'required|mimes:csv,txt,xlsx,xls|max:20480', // 20MB limit
         ]);
 
         $file = $request->file('file');
-        $handle = fopen($file->path(), 'r');
+        $extension = $file->getClientOriginalExtension();
+        $filePath = $file->path();
 
+        $insertedCount = 0;
         $columns = ["id", "custom_project_id", "customer_id", "project_name", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
 
+        // Parse file into rows array
+        $rows = [];
+        if (in_array(strtolower($extension), ['xlsx', 'xls'])) {
+            require_once app_path('Helpers/SimpleXLSX.php');
+            if ( $xlsx = \Shuchkin\SimpleXLSX::parse($filePath) ) {
+                $rows = $xlsx->rows();
+            } else {
+                return redirect()->back()->with('error', 'Excel file parse error: ' . \Shuchkin\SimpleXLSX::parseError());
+            }
+        } else {
+            // Read CSV
+            $handle = fopen($filePath, 'r');
+            while (($row = fgetcsv($handle, 10000, ',')) !== false) {
+                $rows[] = $row;
+            }
+            fclose($handle);
+        }
+
         $header = null;
-        $chunk = [];
-        while (($row = fgetcsv($handle, 10000, ',')) !== false) {
+        
+        // Optimize: Load all existing customers into memory to avoid running 5000+ SELECT queries
+        $existingCustomers = \App\Models\Customer::pluck('id', 'company_name')->toArray();
+
+        foreach ($rows as $row) {
             if (!$header) {
                 $header = $row;
                 continue;
             }
+            
+            // ... (rest of mapping logic)
+
+            // Map user's human-readable Excel headers to Database column names
+            $headerMap = [
+                'table id' => null,
+                'client name' => 'custom_project_id',
+                'company name' => 'customer_id',
+                'customer email' => 'sales_person_email', // mapping fallback
+                'contact person' => null,
+                'phone number' => null,
+                'business category' => null,
+                'address' => null,
+                'project name' => 'project_name',
+                'start date' => 'start_date',
+                'due date' => 'due_date',
+                'payment info' => 'payment_info',
+                'developer' => 'developer',
+                'seo person' => 'seo_person',
+                'domain name' => 'product_details',
+                'renewal date' => 'renewal_date',
+                'sales person' => 'sales_person_name',
+                'sales person email' => 'sales_person_email',
+                'package lmh' => 'package_lmh',
+                'status details' => 'status',
+                'banner | reel | dvc' => 'banner_reel',
+                'design status' => 'workflow_stage',
+                'gmb access' => 'gmb_access_desc',
+                'total number of keywords' => 'total_keyword',
+                'approved keywords' => 'approved_keywords',
+                'first page' => 'first_page',
+                'report send' => 'report_send',
+                'total report' => 'total_report',
+                'adword and sponser' => 'adword_sponser',
+                'google analytics / webmaster email id' => 'analytics_webmaster_email',
+                'product details' => 'product_details',
+                'ftp/ login details' => 'ftp_login_details',
+                'social media login' => 'social_media_login',
+                'issue & comment' => 'issue_comment',
+            ];
 
             $projectData = [];
+            $firstRowData = [];
             foreach ($header as $index => $colName) {
-                $colName = trim($colName);
+                // Clean header name: lowercase, trim spaces, remove backslashes
+                $cleanColName = strtolower(trim(str_replace('\\', '', $colName)));
                 
-                // Only process columns that are defined in our $columns array
-                if (!in_array($colName, $columns)) continue;
-                
-                if ($colName === 'id' || $colName === 'created_at') continue;
+                if (array_key_exists($cleanColName, $headerMap)) {
+                    $dbCol = $headerMap[$cleanColName];
+                } else {
+                    $dbCol = trim($colName); // Fallback to raw name if exported from system
+                }
+
+                if (!$dbCol) continue; // Skip columns that shouldn't be imported
+                if (!in_array($dbCol, $columns)) continue;
+                if ($dbCol === 'id' || $dbCol === 'created_at') continue;
                 
                 if (isset($row[$index]) && trim($row[$index]) !== '') {
                     $val = trim($row[$index]);
                     // Auto-format dates from m/d/Y or d/m/Y to Y-m-d
-                    if (in_array($colName, ['start_date', 'due_date', 'completion_date', 'renewal_date'])) {
+                    if (in_array($dbCol, ['start_date', 'due_date', 'completion_date', 'renewal_date'])) {
                         try {
                             $val = \Carbon\Carbon::parse($val)->format('Y-m-d');
                         } catch (\Throwable $e) {
                             // ignore and pass raw value if parse fails
                         }
                     }
-                    $projectData[$colName] = $val;
+                    $projectData[$dbCol] = $val;
                 }
+            }
+
+            if (empty($firstRowData)) {
+                $firstRowData = $projectData;
             }
 
             if (!empty($projectData['project_name'])) {
                 $projectData['created_at'] = now();
+                
+                // Fallback for required dates if they are empty or completely invalid in Excel (like "md" or "NA")
+                if (empty($projectData['start_date']) || !strtotime($projectData['start_date'])) {
+                    $projectData['start_date'] = date('Y-m-d');
+                } else {
+                    $projectData['start_date'] = date('Y-m-d', strtotime($projectData['start_date']));
+                }
+
+                if (empty($projectData['due_date']) || !strtotime($projectData['due_date'])) {
+                    $projectData['due_date'] = $projectData['start_date'];
+                } else {
+                    $projectData['due_date'] = date('Y-m-d', strtotime($projectData['due_date']));
+                }
+                
+                if (!empty($projectData['completion_date'])) {
+                    if (!strtotime($projectData['completion_date'])) {
+                        $projectData['completion_date'] = null;
+                    } else {
+                        $projectData['completion_date'] = date('Y-m-d', strtotime($projectData['completion_date']));
+                    }
+                }
+                
+                // Resolve customer_id extremely fast using memory array
+                if (!empty($projectData['customer_id']) && !is_numeric($projectData['customer_id'])) {
+                    $companyName = $projectData['customer_id'];
+                    
+                    if (isset($existingCustomers[$companyName])) {
+                        $projectData['customer_id'] = $existingCustomers[$companyName];
+                    } else {
+                        // Create a new customer and add to memory array
+                        $newCustomer = \App\Models\Customer::create([
+                            'company_name' => $companyName,
+                            'client_name' => $projectData['custom_project_id'] ?? $companyName,
+                        ]);
+                        $existingCustomers[$companyName] = $newCustomer->id;
+                        $projectData['customer_id'] = $newCustomer->id;
+                    }
+                }
+
+                // Sanitize ENUMs to prevent "Data truncated" MySQL errors
+                $validWorkflowStages = ['Customer Added','Project Created','Design','Development','SEO','Google Ads','GMB','Testing','Client Approval','Go Live','Maintenance'];
+                if (isset($projectData['workflow_stage']) && !in_array($projectData['workflow_stage'], $validWorkflowStages)) {
+                    $projectData['workflow_stage'] = null;
+                }
+
+                $validPriorities = ['High','Medium','Low'];
+                if (isset($projectData['priority']) && !in_array($projectData['priority'], $validPriorities)) {
+                    $projectData['priority'] = null;
+                }
+
                 try {
                     Project::insert($projectData);
+                    $insertedCount++;
                 } catch (\Throwable $e) {
-                    fclose($handle);
                     return redirect()->back()->with('error', 'Error in row: ' . json_encode($projectData) . ' | MSG: ' . $e->getMessage());
                 }
             }
         }
-        
-        fclose($handle);
 
-        return redirect()->back()->with('success', 'Projects imported successfully with all columns!');
+        if ($insertedCount === 0) {
+            return redirect()->back()->with('error', '0 rows were inserted! Please check your file. Parsed data from first row: ' . json_encode($firstRowData));
+        }
+
+        return redirect()->back()->with('success', "Import successful! $insertedCount projects imported.");
     }
 }

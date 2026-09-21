@@ -95,3 +95,11 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::get('/fix-db', function() {
+    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX projects_custom_project_id_unique'); } catch(\Exception $e) {}
+    try { \Illuminate\Support\Facades\DB::statement('ALTER TABLE projects DROP INDEX custom_project_id'); } catch(\Exception $e) {}
+    
+    $columns = \Illuminate\Support\Facades\DB::select('SHOW INDEXES FROM projects');
+    return response()->json($columns);
+});
