@@ -802,14 +802,14 @@ class ProjectController extends Controller
                         static $customerCounter = 1;
                         $customCustId = 'C-' . rand(100, 999) . '-' . $customerCounter++;
                         $newCustomer = \App\Models\Customer::create([
-                            'custom_id' => $customCustId,
-                            'company_name' => $companyName,
-                            'client_name' => $projectData['temp_client_name'] ?? $companyName,
-                            'contact_person' => $projectData['temp_contact_person'] ?? '',
-                            'mobile' => $projectData['temp_mobile'] ?? '',
-                            'email' => $projectData['temp_email'] ?? ($companyName . '@client.local'),
-                            'address' => $projectData['temp_address'] ?? '',
-                            'business_category' => $projectData['temp_business_category'] ?? '',
+                            'custom_id' => substr($customCustId, 0, 30),
+                            'company_name' => substr($companyName, 0, 255),
+                            'client_name' => substr($projectData['temp_client_name'] ?? $companyName, 0, 255),
+                            'contact_person' => substr($projectData['temp_contact_person'] ?? '', 0, 255),
+                            'mobile' => substr($projectData['temp_mobile'] ?? '', 0, 20),
+                            'email' => substr($projectData['temp_email'] ?? ($companyName . '@client.local'), 0, 255),
+                            'address' => substr($projectData['temp_address'] ?? '', 0, 255),
+                            'business_category' => substr($projectData['temp_business_category'] ?? '', 0, 255),
                             'created_at' => now(),
                         ]);
                         $existingCustomers[$companyName] = $newCustomer->id;
