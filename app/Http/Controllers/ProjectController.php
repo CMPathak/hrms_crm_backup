@@ -605,7 +605,7 @@ class ProjectController extends Controller
             'Content-Disposition' => 'attachment; filename="projects_all.csv"',
         ];
 
-        $columns = ["id", "custom_project_id", "customer_id", "project_name", "service_type", "package", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
+        $columns = ["id", "custom_project_id", "customer_id", "project_name", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
 
         $callback = function() use ($columns) {
             $file = fopen('php://output', 'w');
@@ -640,7 +640,7 @@ class ProjectController extends Controller
         $file = $request->file('file');
         $handle = fopen($file->path(), 'r');
 
-        $columns = ["id", "custom_project_id", "customer_id", "project_name", "service_type", "package", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
+        $columns = ["id", "custom_project_id", "customer_id", "project_name", "payment_info", "sales_person_name", "sales_person_email", "package_lmh", "product_details", "description", "banner_reel", "gmb_access_desc", "dvc", "total_keyword", "total_report", "adword_sponser", "comments", "start_date", "due_date", "completion_date", "status", "priority", "workflow_stage", "created_at", "first_page", "report_send", "approved_keywords", "renewal_date", "ftp_login_details", "client_type", "analytics_webmaster_email", "social_media_login", "issue_comment", "seo_person", "developer", "dev_completion_pct", "design_banner", "design_logo", "design_ui", "design_client_approval"];
 
         $header = null;
         $chunk = [];
@@ -651,26 +651,37 @@ class ProjectController extends Controller
             }
 
             $projectData = [];
-            foreach ($columns as $index => $col) {
-                if ($col === 'id' || $col === 'created_at') continue;
+            foreach ($header as $index => $colName) {
+                $colName = trim($colName);
+                
+                // Only process columns that are defined in our $columns array
+                if (!in_array($colName, $columns)) continue;
+                
+                if ($colName === 'id' || $colName === 'created_at') continue;
                 
                 if (isset($row[$index]) && trim($row[$index]) !== '') {
-                    $projectData[$col] = $row[$index];
+                    $val = trim($row[$index]);
+                    // Auto-format dates from m/d/Y or d/m/Y to Y-m-d
+                    if (in_array($colName, ['start_date', 'due_date', 'completion_date', 'renewal_date'])) {
+                        try {
+                            $val = \Carbon\Carbon::parse($val)->format('Y-m-d');
+                        } catch (\Throwable $e) {
+                            // ignore and pass raw value if parse fails
+                        }
+                    }
+                    $projectData[$colName] = $val;
                 }
             }
 
             if (!empty($projectData['project_name'])) {
-                $chunk[] = $projectData;
+                $projectData['created_at'] = now();
+                try {
+                    Project::insert($projectData);
+                } catch (\Throwable $e) {
+                    fclose($handle);
+                    return redirect()->back()->with('error', 'Error in row: ' . json_encode($projectData) . ' | MSG: ' . $e->getMessage());
+                }
             }
-
-            if (count($chunk) >= 500) {
-                Project::insert($chunk);
-                $chunk = [];
-            }
-        }
-        
-        if (count($chunk) > 0) {
-            Project::insert($chunk);
         }
         
         fclose($handle);
