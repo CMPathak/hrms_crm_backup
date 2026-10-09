@@ -24,6 +24,12 @@ return new class extends Migration
             if (!Schema::hasColumn('projects', 'completed_reels')) {
                 $table->integer('completed_reels')->default(0)->after('total_reels');
             }
+            if (!Schema::hasColumn('projects', 'total_dvc')) {
+                $table->integer('total_dvc')->default(0)->after('completed_reels');
+            }
+            if (!Schema::hasColumn('projects', 'completed_dvc')) {
+                $table->integer('completed_dvc')->default(0)->after('total_dvc');
+            }
         });
     }
 
