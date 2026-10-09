@@ -198,3 +198,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
 });
 
+
+Route::get('/run-migrations', function () {
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    return "All database migrations completed successfully!";
+});
