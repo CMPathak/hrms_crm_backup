@@ -61,8 +61,10 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
 
     const tabs = [
         { id: 'all', label: 'All Domains' },
-        { id: 'expiring_soon', label: 'Expiring Soon (30d)', badge: metrics.expiring_soon },
-        { id: 'critical', label: 'Critical (7d)', badge: metrics.critical },
+        { id: 'renew_3m', label: '3 Months (90d)', badge: metrics.renew_3m },
+        { id: 'renew_2m', label: '2 Months (60d)', badge: metrics.renew_2m },
+        { id: 'renew_1m', label: '1 Month (30d)', badge: metrics.renew_1m },
+        { id: 'renew_7d', label: '7 Days', badge: metrics.renew_7d },
         { id: 'expired', label: 'Expired', badge: metrics.expired },
         { id: 'active', label: 'Active', badge: metrics.active },
     ];
@@ -86,62 +88,72 @@ export default function DomainsIndex({ domains = [], metrics = {}, currentTab = 
                 </div>
 
                 {/* KPI Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                     {/* 1. Total Domains */}
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
+                    <button onClick={() => handleTabChange('all')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-indigo-200 hover:shadow-sm transition-all w-full">
                         <div>
-                            <span className="text-xs font-semibold text-slate-500">Total Registered Domains</span>
-                            <div className="text-3xl font-black text-slate-900 mt-1">
+                            <span className="text-xs font-semibold text-slate-500">Total Domains</span>
+                            <div className="text-2xl font-black text-slate-900 mt-1">
                                 {metrics.total ?? 0}
                             </div>
-                            <span className="text-xs text-slate-400 mt-1 block">Active across all clients</span>
+                            <span className="text-[10px] text-slate-400 mt-1 block">Active across all clients</span>
                         </div>
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                            <Globe className="w-6 h-6" />
-                        </div>
-                    </div>
+                    </button>
 
-                    {/* 2. Expiring in 30 Days */}
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
+                    {/* 2. 3 Month Renewal */}
+                    <button onClick={() => handleTabChange('renew_3m')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-emerald-200 hover:shadow-sm transition-all w-full">
                         <div>
-                            <span className="text-xs font-semibold text-slate-500">Expiring in 30 Days</span>
-                            <div className="text-3xl font-black text-amber-600 mt-1">
-                                {metrics.expiring_soon ?? 0}
+                            <span className="text-xs font-semibold text-slate-500">3 Month Renewal</span>
+                            <div className="text-2xl font-black text-emerald-600 mt-1">
+                                {metrics.renew_3m ?? 0}
                             </div>
-                            <span className="text-xs text-slate-400 mt-1 block">Requires customer outreach</span>
+                            <span className="text-[10px] text-slate-400 mt-1 block">Expiring in 90 Days</span>
                         </div>
-                        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                            <Clock className="w-6 h-6" />
-                        </div>
-                    </div>
+                    </button>
 
-                    {/* 3. Critical (<= 7 Days) */}
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
+                    {/* 3. 2 Month Renewal */}
+                    <button onClick={() => handleTabChange('renew_2m')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-amber-200 hover:shadow-sm transition-all w-full">
                         <div>
-                            <span className="text-xs font-semibold text-slate-500">Critical Expirations (7d)</span>
-                            <div className="text-3xl font-black text-rose-600 mt-1">
-                                {metrics.critical ?? 0}
+                            <span className="text-xs font-semibold text-slate-500">2 Month Renewal</span>
+                            <div className="text-2xl font-black text-amber-600 mt-1">
+                                {metrics.renew_2m ?? 0}
                             </div>
-                            <span className="text-xs text-rose-500 font-semibold mt-1 block">Immediate action needed</span>
+                            <span className="text-[10px] text-slate-400 mt-1 block">Expiring in 60 Days</span>
                         </div>
-                        <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                            <AlertTriangle className="w-6 h-6" />
-                        </div>
-                    </div>
+                    </button>
 
-                    {/* 4. Already Expired */}
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
+                    {/* 4. 1 Month Renewal */}
+                    <button onClick={() => handleTabChange('renew_1m')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-orange-200 hover:shadow-sm transition-all w-full">
+                        <div>
+                            <span className="text-xs font-semibold text-slate-500">1 Month Renewal</span>
+                            <div className="text-2xl font-black text-orange-600 mt-1">
+                                {metrics.renew_1m ?? 0}
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-1 block">Expiring in 30 Days</span>
+                        </div>
+                    </button>
+
+                    {/* 5. 7 Days Renewal */}
+                    <button onClick={() => handleTabChange('renew_7d')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-rose-200 hover:shadow-sm transition-all w-full">
+                        <div>
+                            <span className="text-xs font-semibold text-slate-500">7 Days Renewal</span>
+                            <div className="text-2xl font-black text-rose-600 mt-1">
+                                {metrics.renew_7d ?? 0}
+                            </div>
+                            <span className="text-[10px] text-rose-500 font-semibold mt-1 block">Immediate action needed</span>
+                        </div>
+                    </button>
+
+                    {/* 6. Already Expired */}
+                    <button onClick={() => handleTabChange('expired')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between text-left cursor-pointer hover:border-slate-300 hover:shadow-sm transition-all w-full">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">Already Expired</span>
-                            <div className="text-3xl font-black text-slate-700 mt-1">
+                            <div className="text-2xl font-black text-slate-700 mt-1">
                                 {metrics.expired ?? 0}
                             </div>
-                            <span className="text-xs text-slate-400 mt-1 block">Past renewal date</span>
+                            <span className="text-[10px] text-slate-400 mt-1 block">Past renewal date</span>
                         </div>
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                            <XCircle className="w-6 h-6" />
-                        </div>
-                    </div>
+                    </button>
                 </div>
 
                 {/* Main Content Card */}

@@ -14,6 +14,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'role_id',
+        'manager_id',
         'name',
         'email',
         'password',
@@ -38,6 +39,11 @@ class User extends Authenticatable
     public function role()
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function manager()
+    {
+        return $this->belongsTo(User::class, 'manager_id');
     }
 
     public function hasRole(string|array $roles): bool

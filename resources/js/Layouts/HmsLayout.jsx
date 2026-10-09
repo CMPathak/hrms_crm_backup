@@ -21,8 +21,12 @@ import {
     Sparkles,
     Clock,
     AlertCircle,
+    Activity,
+    Image as ImageIcon,
+    Search,
     CheckCircle2,
-    Activity
+    TrendingUp,
+    PhoneCall
 } from 'lucide-react';
 
 export default function HmsLayout({ header, children }) {
@@ -39,6 +43,12 @@ export default function HmsLayout({ header, children }) {
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [notifications, setNotifications] = useState([]);
     const [totalNotificationsCount, setTotalNotificationsCount] = useState(0);
+    const [pendingProjectsCount, setPendingProjectsCount] = useState(0);
+    const [pendingProjectAlerts, setPendingProjectAlerts] = useState([]);
+    const [pendingProjectsOpen, setPendingProjectsOpen] = useState(false);
+    const [domainAlertsCount, setDomainAlertsCount] = useState(0);
+    const [domainAlertsList, setDomainAlertsList] = useState([]);
+    const [domainAlertsOpen, setDomainAlertsOpen] = useState(false);
 
     // Poll notifications summary every 8 seconds
     useEffect(() => {
@@ -49,19 +59,44 @@ export default function HmsLayout({ header, children }) {
                     setUnreadChatCount(res.data.unreadChatCount || 0);
 
                     let newNotifs = res.data.notifications || [];
-                    let domainAlerts = renewal_alerts.map(p => ({
-                        id: `renewal_${p.id}`,
-                        type: 'domain',
-                        title: `Renewal: ${p.name}`,
-                        description: `Renews in ${p.days_left} days (${p.renewal_date})`,
-                        time: 'Now',
-                        link: route('domains.index')
-                    }));
+                    let propDomainAlerts = renewal_alerts.map(p => {
+                        const days = parseInt(p.days_left);
+                        const isExpired = days < 0;
+                        const absDays = Math.abs(days);
+                        
+                        let desc = '';
+                        let timeStr = '';
+                        
+                        if (days < 0) {
+                            desc = `Expired ${absDays} days ago (${p.renewal_date})`;
+                            timeStr = 'Expired';
+                        } else if (days === 0) {
+                            desc = `Expires today (${p.renewal_date})`;
+                            timeStr = 'Today';
+                        } else {
+                            desc = `Expires in ${days} days (${p.renewal_date})`;
+                            timeStr = `${days}d left`;
+                        }
 
-                    let combined = [...newNotifs, ...domainAlerts];
+                        return {
+                            id: `renewal_${p.id}`,
+                            type: 'domain',
+                            title: `Renewal: ${p.name}`,
+                            description: desc,
+                            time: timeStr,
+                            isExpired: isExpired,
+                            link: route('domains.index')
+                        };
+                    });
 
-                    setTotalNotificationsCount((res.data.totalNotificationsCount || 0) + domainAlerts.length);
-                    setNotifications(combined);
+                    let combinedDomains = [...propDomainAlerts, ...(res.data.domainAlerts || [])];
+
+                    setTotalNotificationsCount(res.data.totalNotificationsCount || 0);
+                    setNotifications(newNotifs);
+                    setPendingProjectsCount(res.data.pendingProjectsCount || 0);
+                    setPendingProjectAlerts(res.data.pendingProjectAlerts || []);
+                    setDomainAlertsCount(combinedDomains.length);
+                    setDomainAlertsList(combinedDomains);
                 }
             } catch (err) {
                 // silent
@@ -93,6 +128,11 @@ export default function HmsLayout({ header, children }) {
         roleId === 2 ||
         user?.id === 1;
     const isClient = roleName === 'client' || roleId === 10;
+    const isDesigner = roleName === 'designer' || roleId === 5;
+    const canAccessBanners = isAdmin || isDesigner;
+    const isSeoUser = roleName === 'seo_executive' || roleName === 'seo_manager' || roleId === 6 || roleId === 12 || roleName.includes('seo');
+    const canAccessSeo = isAdmin || isSeoUser;
+    const isSales = roleName.includes('sales');
 
     const navItems = isClient
         ? [
@@ -138,6 +178,18 @@ export default function HmsLayout({ header, children }) {
                 icon: CheckSquare,
                 active: route().current('tasks.*'),
             },
+            ...(canAccessBanners ? [{
+                name: 'Banners & Reels',
+                href: route('banners-reels.index'),
+                icon: ImageIcon,
+                active: route().current('banners-reels.*'),
+            }] : []),
+            ...(canAccessSeo ? [{
+                name: 'SEO Projects',
+                href: route('seo.index'),
+                icon: Search,
+                active: route().current('seo.*'),
+            }] : []),
 
             {
                 name: 'Team Chat',
@@ -183,6 +235,36 @@ export default function HmsLayout({ header, children }) {
                         active: route().current('domains.*'),
                         badge: renewal_alerts?.length > 0 ? renewal_alerts.length : null,
                     },
+                ]
+                : []),
+            ...(isAdmin || ['developer', 'developer_manager', 'seo_manager', 'seo_executive'].includes(roleName)
+                ? [
+                    {
+                        name: 'FTP Login Details',
+                        href: route('ftp-logins.index'),
+                        icon: Globe, // Fallback icon, could also be Network or similar imported icon if needed, but Globe is already imported
+                        active: route().current('ftp-logins.*'),
+                    }
+                ]
+                : []),
+            ...(isAdmin || isSales
+                ? [
+                    {
+                        name: 'Sales Targets',
+                        href: route('targets.index'),
+                        icon: TrendingUp,
+                        active: route().current('targets.*'),
+                    },
+                    {
+                        name: 'Daily Follow-ups',
+                        href: route('followups.index'),
+                        icon: PhoneCall,
+                        active: route().current('followups.*'),
+                    },
+                ]
+                : []),
+            ...(isAdmin || ['sales_manager', 'seo_manager', 'developer_manager'].includes(roleName)
+                ? [
                     {
                         name: 'Users & Roles',
                         href: route('users.index'),
@@ -433,12 +515,182 @@ export default function HmsLayout({ header, children }) {
                                     </Link>
                                 )}
 
+                                {/* Domain Expiry Alerts Option on Top */}
+                                {!isClient && (
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDomainAlertsOpen(!domainAlertsOpen);
+                                                setPendingProjectsOpen(false);
+                                                setNotificationsOpen(false);
+                                                setTopProjectsOpen(false);
+                                                setUserMenuOpen(false);
+                                            }}
+                                            className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-emerald-600 transition-all cursor-pointer shadow-xs flex items-center justify-center"
+                                            title="Domain Alerts"
+                                        >
+                                            <Globe className="w-4 h-4" />
+                                            {domainAlertsCount > 0 && (
+                                                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold bg-emerald-500 text-white flex items-center justify-center shadow-md ring-2 ring-white">
+                                                    {domainAlertsCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {domainAlertsOpen && (
+                                            <div
+                                                className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                            >
+                                                <div className="flex items-center justify-between px-4 pb-2.5 border-b border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <Globe className="w-4 h-4 text-emerald-600" />
+                                                        <span className="text-sm font-bold text-slate-900">Domain Alerts</span>
+                                                        {domainAlertsCount > 0 && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                                                {domainAlertsCount} Alerts
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 px-2 py-1">
+                                                    {domainAlertsList.length === 0 ? (
+                                                        <div className="py-8 text-center text-slate-400">
+                                                            <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400 mb-1" />
+                                                            <p className="text-xs font-semibold text-slate-700">All clear!</p>
+                                                            <p className="text-[11px] text-slate-400">No expiring domains right now.</p>
+                                                        </div>
+                                                    ) : (
+                                                        domainAlertsList.map((n) => (
+                                                            <Link
+                                                                key={n.id}
+                                                                href={n.link}
+                                                                onClick={() => setDomainAlertsOpen(false)}
+                                                                className="block p-3 rounded-xl hover:bg-slate-50 transition-colors"
+                                                            >
+                                                                <div className="flex items-start gap-2.5">
+                                                                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 bg-emerald-100 text-emerald-600">
+                                                                        <Globe className="w-3.5 h-3.5" />
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
+                                                                            <span className={`text-[10px] shrink-0 ${n.isExpired ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>{n.time}</span>
+                                                                        </div>
+                                                                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.description}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </Link>
+                                                        ))
+                                                    )}
+                                                </div>
+
+                                                <div className="pt-2 px-4 border-t border-slate-100 flex justify-end items-center text-[11px]">
+                                                    <button
+                                                        onClick={() => setDomainAlertsOpen(false)}
+                                                        className="text-slate-400 hover:text-slate-600 font-medium"
+                                                    >
+                                                        Dismiss
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Pending Projects Option on Top (For Admins) */}
+                                {isAdmin && (
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPendingProjectsOpen(!pendingProjectsOpen);
+                                                setDomainAlertsOpen(false);
+                                                setNotificationsOpen(false);
+                                                setTopProjectsOpen(false);
+                                                setUserMenuOpen(false);
+                                            }}
+                                            className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-indigo-600 transition-all cursor-pointer shadow-xs flex items-center justify-center"
+                                            title="Pending Projects Alerts"
+                                        >
+                                            <FolderKanban className="w-4 h-4" />
+                                            {pendingProjectsCount > 0 && (
+                                                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold bg-indigo-500 text-white flex items-center justify-center shadow-md ring-2 ring-white">
+                                                    {pendingProjectsCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {pendingProjectsOpen && (
+                                            <div
+                                                className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                            >
+                                                <div className="flex items-center justify-between px-4 pb-2.5 border-b border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <FolderKanban className="w-4 h-4 text-indigo-600" />
+                                                        <span className="text-sm font-bold text-slate-900">Pending Projects</span>
+                                                        {pendingProjectsCount > 0 && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                                                                {pendingProjectsCount} Pending
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 px-2 py-1">
+                                                    {pendingProjectAlerts.length === 0 ? (
+                                                        <div className="py-8 text-center text-slate-400">
+                                                            <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400 mb-1" />
+                                                            <p className="text-xs font-semibold text-slate-700">All clear!</p>
+                                                            <p className="text-[11px] text-slate-400">No pending projects right now.</p>
+                                                        </div>
+                                                    ) : (
+                                                        pendingProjectAlerts.map((n) => (
+                                                            <Link
+                                                                key={n.id}
+                                                                href={n.link}
+                                                                onClick={() => setPendingProjectsOpen(false)}
+                                                                className="block p-3 rounded-xl hover:bg-slate-50 transition-colors"
+                                                            >
+                                                                <div className="flex items-start gap-2.5">
+                                                                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 bg-indigo-100 text-indigo-600">
+                                                                        <FolderKanban className="w-3.5 h-3.5" />
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
+                                                                            <span className={`text-[10px] shrink-0 ${n.isExpired ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>{n.time}</span>
+                                                                        </div>
+                                                                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.description}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </Link>
+                                                        ))
+                                                    )}
+                                                </div>
+
+                                                <div className="pt-2 px-4 border-t border-slate-100 flex justify-end items-center text-[11px]">
+                                                    <button
+                                                        onClick={() => setPendingProjectsOpen(false)}
+                                                        className="text-slate-400 hover:text-slate-600 font-medium"
+                                                    >
+                                                        Dismiss
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Notifications Option on Top */}
                                 <div className="relative">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setNotificationsOpen(!notificationsOpen);
+                                            setPendingProjectsOpen(false);
+                                            setDomainAlertsOpen(false);
                                             setTopProjectsOpen(false);
                                             setUserMenuOpen(false);
                                         }}
@@ -497,16 +749,19 @@ export default function HmsLayout({ header, children }) {
                                                                     ? 'bg-blue-100 text-blue-600'
                                                                     : n.type === 'ticket'
                                                                         ? 'bg-amber-100 text-amber-600'
-                                                                        : 'bg-rose-100 text-rose-600'
+                                                                        : n.type === 'project'
+                                                                            ? 'bg-indigo-100 text-indigo-600'
+                                                                            : 'bg-rose-100 text-rose-600'
                                                                     }`}>
                                                                     {n.type === 'chat' && <MessageSquare className="w-3.5 h-3.5" />}
                                                                     {n.type === 'ticket' && <Headset className="w-3.5 h-3.5" />}
                                                                     {n.type === 'domain' && <Globe className="w-3.5 h-3.5" />}
+                                                                    {n.type === 'project' && <FolderKanban className="w-3.5 h-3.5" />}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-center justify-between">
                                                                         <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
-                                                                        <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
+                                                                        <span className={`text-[10px] shrink-0 ${n.isExpired ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>{n.time}</span>
                                                                     </div>
                                                                     <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.description}</p>
                                                                 </div>

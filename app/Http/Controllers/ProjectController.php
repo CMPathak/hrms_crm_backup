@@ -14,10 +14,52 @@ use Inertia\Response;
 
 class ProjectController extends Controller
 {
+    private function parseLegacyBannerReel($brInput, $dvcInput, $project = null)
+    {
+        $res = [
+            'banner_reel' => $brInput,
+            'dvc' => $dvcInput,
+        ];
+
+        $br = strtoupper(trim($brInput ?? ''));
+        if (!empty($br) && !in_array($br, ['NA', 'N/A'])) {
+            $b = 0; $r = 0; $d = 0;
+            if (preg_match('/(\d+)\s*B/', $br, $matches) || preg_match('/^(\d+)$/', $br, $matches)) {
+                $b = (int)$matches[1];
+            }
+            if (preg_match('/(\d+)\s*R/', $br, $matches)) {
+                $r = (int)$matches[1];
+            }
+            if (preg_match('/(\d+)\s*D/', $br, $matches)) {
+                $d = (int)$matches[1];
+            }
+
+            if ($b > 0 || $r > 0 || $d > 0) {
+                $res['total_banners'] = $project ? max($project->total_banners, $b) : $b;
+                $res['total_reels'] = $project ? max($project->total_reels, $r) : $r;
+                $res['total_dvc'] = $project ? max($project->total_dvc, $d) : $d;
+                $res['banner_reel'] = 'NA';
+            }
+        }
+        
+        $dvc = strtoupper(trim($dvcInput ?? ''));
+        if (!empty($dvc) && !in_array($dvc, ['NA', 'N/A'])) {
+            if (is_numeric($dvc)) {
+                $d_num = (int)$dvc;
+                if ($d_num > 0) {
+                    $res['total_dvc'] = max($res['total_dvc'] ?? ($project ? $project->total_dvc : 0), $d_num);
+                    $res['dvc'] = 'NA';
+                }
+            }
+        }
+
+        return $res;
+    }
+
     private function getMetrics($user = null): array
     {
         $query = Project::query()
-            ->select(['id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel', 'customer_id']);
+            ->select(['id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel', 'customer_id', 'total_banners', 'completed_banners', 'total_reels', 'completed_reels', 'total_dvc', 'completed_dvc', 'total_keyword', 'approved_keywords']);
 
         if ($user && !$user->isAdmin()) {
             $query->where(function ($q) use ($user) {
@@ -29,16 +71,40 @@ class ProjectController extends Controller
                          ->orWhere('seo_executive_id', $user->id)
                          ->orWhere('designer_id', $user->id);
                   });
+                  
+                if ($user->hasRole('seo_manager')) {
+                    $q->orWhereHas('assignment', function ($aq) use ($user) {
+                        $aq->whereHas('seoExecutive', function($sq) use ($user) {
+                            $sq->where('manager_id', $user->id);
+                        });
+                    });
+                }
+                
+                if ($user->hasRole('developer_manager')) {
+                    $q->orWhereHas('assignment', function ($aq) use ($user) {
+                        $aq->whereHas('developer', function($dq) use ($user) {
+                            $dq->where('manager_id', $user->id);
+                        })->orWhereHas('designer', function($dq) use ($user) {
+                            $dq->where('manager_id', $user->id);
+                        });
+                    });
+                }
+                
+                if ($user->hasRole('sales_manager')) {
+                    $q->orWhereExists(function ($eq) use ($user) {
+                        $eq->select(DB::raw(1))
+                           ->from('users')
+                           ->whereColumn('users.name', 'projects.sales_person_name')
+                           ->where('users.manager_id', $user->id);
+                    });
+                }
             });
         }
 
         $metricProjects = $query->get();
 
-        if ($user && !$user->isAdmin()) {
-            $customerCount = $metricProjects->pluck('customer_id')->unique()->count();
-        } else {
-            $customerCount = Customer::count();
-        }
+        // Count based on unique project IDs (table ID) so even if customer names repeat, the ID remains single
+        $customerCount = $metricProjects->pluck('id')->unique()->count();
         $holdCount = 0;
         $completedCount = 0;
         $closedCount = 0;
@@ -48,7 +114,9 @@ class ProjectController extends Controller
         $gmbTotal = 0; $gmbPending = 0;
         $smTotal = 0; $smPending = 0;
         $dvcTotal = 0; $dvcPending = 0;
-        $brTotal = 0; $brPending = 0;
+        $bannersTotal = 0; $bannersPending = 0;
+        $reelsTotal = 0; $reelsPending = 0;
+        $kwTotal = 0; $kwPending = 0;
 
         foreach ($metricProjects as $p) {
             $st = strtolower(trim($p->status ?? ''));
@@ -87,19 +155,48 @@ class ProjectController extends Controller
 
             // DVC
             $dvc = strtolower(trim($p->dvc ?? ''));
-            if (!empty($dvc) && $dvc !== 'na') {
-                $dvcTotal++;
+            $hasNewDvc = ($p->total_dvc > 0);
+            
+            if ($hasNewDvc) {
+                $dvcTotal += $p->total_dvc;
+                $dvcPending += ($p->total_dvc - $p->completed_dvc);
+            } elseif (!empty($dvc) && $dvc !== 'na' && $dvc !== 'n/a') {
+                $dvcTotal += 1;
                 if ($dvc !== 'done' && (str_contains($dvc, 'pending') || str_contains($dvc, 'required') || str_contains($dvc, 'no') || str_contains($dvc, 'need') || empty($dvc))) {
-                    $dvcPending++;
+                    $dvcPending += 1;
                 }
             }
 
-            // Banner & Reel
+            // Banners & Reels
             $br = strtolower(trim($p->banner_reel ?? ''));
-            if (!empty($br) && $br !== 'na') {
-                $brTotal++;
+            $hasNewBr = ($p->total_banners > 0 || $p->total_reels > 0);
+
+            if ($hasNewBr) {
+                $bannersTotal += $p->total_banners;
+                $bannersPending += ($p->total_banners - $p->completed_banners);
+                
+                $reelsTotal += $p->total_reels;
+                $reelsPending += ($p->total_reels - $p->completed_reels);
+            } elseif (!empty($br) && $br !== 'na' && $br !== 'n/a') {
+                $bannersTotal += 1;
                 if ($br !== 'done' && (str_contains($br, 'pending') || str_contains($br, 'required') || str_contains($br, 'no') || str_contains($br, 'need') || empty($br))) {
-                    $brPending++;
+                    $bannersPending += 1;
+                }
+            }
+
+            // Keywords
+            $tk = (int)trim($p->total_keyword ?? '0');
+            if ($tk > 0) {
+                $kwTotal += $tk;
+                $ak = strtolower(trim($p->approved_keywords ?? ''));
+                if ($ak === 'done') {
+                    // All keywords approved, 0 pending
+                } elseif (!empty($ak)) {
+                    // Count lines of text as keywords provided
+                    $lines = preg_match_all('/[^\r\n]+/', $p->approved_keywords, $matches);
+                    $kwPending += max(0, $tk - $lines);
+                } else {
+                    $kwPending += $tk;
                 }
             }
         }
@@ -118,8 +215,14 @@ class ProjectController extends Controller
                 'smPending' => $smPending,
                 'dvcTotal' => $dvcTotal,
                 'dvcPending' => $dvcPending,
-                'brTotal' => $brTotal,
-                'brPending' => $brPending,
+                'bannersTotal' => $bannersTotal,
+                'bannersPending' => $bannersPending,
+                'reelsTotal' => $reelsTotal,
+                'reelsPending' => $reelsPending,
+                'brTotal' => $bannersTotal + $reelsTotal,
+                'brPending' => $bannersPending + $reelsPending,
+                'kwTotal' => $kwTotal,
+                'kwPending' => $kwPending,
             ]
         ];
     }
@@ -127,17 +230,17 @@ class ProjectController extends Controller
     public function index(Request $request): Response
     {
         $statusFilter = $request->query('status');
-        $serviceFilter = $request->query('service');
         $priorityFilter = $request->query('priority');
         $teamFilter = $request->query('team');
         $search = $request->query('search');
+        $typeFilter = $request->query('type');
         $perPage = (int)$request->query('per_page', 5);
         if ($perPage <= 0 || $perPage > 2000) {
             $perPage = 50;
         }
 
         $query = Project::with(['customer', 'assignment.developer', 'assignment.designer', 'assignment.seoExecutive', 'domainHosting', 'logoRegistration'])
-            ->orderByRaw('COALESCE(start_date, created_at) DESC, id DESC');
+            ->orderBy('created_at', 'desc')->orderBy('id', 'desc');
 
         $user = $request->user();
         if ($user && !$user->isAdmin()) {
@@ -150,37 +253,103 @@ class ProjectController extends Controller
                          ->orWhere('seo_executive_id', $user->id)
                          ->orWhere('designer_id', $user->id);
                   });
+                  
+                if ($user->hasRole('seo_manager')) {
+                    $q->orWhereHas('assignment', function ($aq) use ($user) {
+                        $aq->whereHas('seoExecutive', function($sq) use ($user) {
+                            $sq->where('manager_id', $user->id);
+                        });
+                    });
+                }
+                
+                if ($user->hasRole('developer_manager')) {
+                    $q->orWhereHas('assignment', function ($aq) use ($user) {
+                        $aq->whereHas('developer', function($dq) use ($user) {
+                            $dq->where('manager_id', $user->id);
+                        })->orWhereHas('designer', function($dq) use ($user) {
+                            $dq->where('manager_id', $user->id);
+                        });
+                    });
+                }
+                
+                if ($user->hasRole('sales_manager')) {
+                    $q->orWhereExists(function ($eq) use ($user) {
+                        $eq->select(DB::raw(1))
+                           ->from('users')
+                           ->whereColumn('users.name', 'projects.sales_person_name')
+                           ->where('users.manager_id', $user->id);
+                    });
+                }
             });
         }
 
         if ($statusFilter) {
-            if ($statusFilter === 'active') {
+            $statusLower = strtolower($statusFilter);
+            if ($statusLower === 'active') {
                 $query->active();
-            } elseif ($statusFilter === 'hold') {
+            } elseif ($statusLower === 'hold') {
                 $query->hold();
-            } elseif ($statusFilter === 'completed') {
+            } elseif ($statusLower === 'completed') {
                 $query->completed();
-            } elseif ($statusFilter === 'closed') {
+            } elseif ($statusLower === 'closed') {
                 $query->closed();
-            } elseif ($statusFilter === 'pending') {
+            } elseif ($statusLower === 'pending') {
                 $query->pending();
             } else {
                 $query->where('status', $statusFilter);
             }
         }
 
-        if ($serviceFilter) {
-            $query->where('service_type', 'like', "%{$serviceFilter}%");
+        if ($typeFilter) {
+            if ($typeFilter === 'gmb') {
+                $query->whereNotNull('gmb_access_desc')
+                      ->where('gmb_access_desc', '!=', '')
+                      ->whereRaw('LOWER(TRIM(gmb_access_desc)) != ?', ['na']);
+            } elseif ($typeFilter === 'social') {
+                $query->where(function($q) {
+                    $q->whereRaw('LOWER(comments) LIKE ?', ['%social%'])
+                      ->orWhereRaw('LOWER(product_details) LIKE ?', ['%social%'])
+                      ->orWhereRaw('LOWER(description) LIKE ?', ['%social%'])
+                      ->orWhereRaw('LOWER(comments) LIKE ?', ['%fb%'])
+                      ->orWhereRaw('LOWER(comments) LIKE ?', ['%insta%']);
+                });
+            } elseif ($typeFilter === 'keywords') {
+                $query->where('total_keyword', '>', 0)
+                      ->orWhere(function ($q2) {
+                          $q2->whereNotNull('total_keyword')
+                             ->where('total_keyword', '!=', '');
+                      });
+            } elseif ($typeFilter === 'banners') {
+                $query->where('total_banners', '>', 0);
+            } elseif ($typeFilter === 'reels') {
+                $query->where('total_reels', '>', 0);
+            } elseif ($typeFilter === 'dvc') {
+                $query->where('total_dvc', '>', 0);
+            }
         }
+
+
+        $monthFilter = $request->query('month');
 
         if ($priorityFilter) {
             $query->where('priority', $priorityFilter);
         }
 
+        if ($monthFilter) {
+            $parts = explode('-', $monthFilter);
+            if (count($parts) === 2) {
+                $query->where(function($q) use ($parts) {
+                    $q->whereYear('projects.created_at', $parts[0])
+                      ->whereMonth('projects.created_at', $parts[1]);
+                });
+            }
+        }
+
         if ($teamFilter) {
             $query->where(function ($q) use ($teamFilter) {
                 $q->where('developer', 'like', "%{$teamFilter}%")
-                  ->orWhere('seo_person', 'like', "%{$teamFilter}%");
+                  ->orWhere('seo_person', 'like', "%{$teamFilter}%")
+                  ->orWhere('sales_person_name', 'like', "%{$teamFilter}%");
             });
         }
 
@@ -191,6 +360,10 @@ class ProjectController extends Controller
                   ->orWhere('developer', 'like', "%{$search}%")
                   ->orWhere('seo_person', 'like', "%{$search}%")
                   ->orWhere('sales_person_name', 'like', "%{$search}%")
+                  ->orWhere('package_lmh', 'like', "%{$search}%")
+                  ->orWhereHas('domainHosting', function ($dq) use ($search) {
+                      $dq->where('domain_name', 'like', "%{$search}%");
+                  })
                   ->orWhereHas('customer', function ($cq) use ($search) {
                       $cq->where('company_name', 'like', "%{$search}%")
                          ->orWhere('client_name', 'like', "%{$search}%")
@@ -202,7 +375,25 @@ class ProjectController extends Controller
         $projects = $query->paginate($perPage)->withQueryString();
         $metrics = $this->getMetrics($user);
         $customers = Customer::select(['id', 'client_name', 'company_name'])->orderBy('company_name')->get();
-        $users = User::select(['id', 'name', 'role_id'])->with('role:id,role_name,display_name')->orderBy('name')->get();
+        $usersQuery = User::select(['id', 'name', 'role_id'])->with('role:id,role_name,display_name')->orderBy('name');
+        
+        if ($user && $user->hasRole('seo_manager')) {
+            $usersQuery->whereHas('role', function ($q) {
+                $q->where('role_name', 'seo_executive');
+            });
+        } elseif ($user && $user->hasRole('developer_manager')) {
+            $usersQuery->whereHas('role', function ($q) {
+                $q->where('role_name', 'developer');
+            });
+        } elseif ($user && $user->hasRole('sales_manager')) {
+            $usersQuery->whereHas('role', function ($q) {
+                $q->where('role_name', 'sales');
+            });
+        } elseif ($user && $user->hasRole(['sales', 'developer', 'seo_executive'])) {
+            $usersQuery->where('id', $user->id);
+        }
+        
+        $users = $usersQuery->get();
 
         return Inertia::render('Projects/Index', [
             'projects' => $projects,
@@ -213,10 +404,11 @@ class ProjectController extends Controller
             'filters' => [
                 'search' => $search ?? '',
                 'status' => $statusFilter ?? '',
-                'service' => $serviceFilter ?? '',
                 'priority' => $priorityFilter ?? '',
                 'team' => $teamFilter ?? '',
+                'month' => $monthFilter ?? '',
                 'per_page' => $perPage,
+                'type' => $typeFilter ?? '',
             ],
         ]);
     }
@@ -230,7 +422,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'client_name' => 'nullable|string|max:150',
             'company_name' => 'required|string|max:150',
-            'email' => 'nullable|email|max:150',
+            'email' => 'nullable|string|max:500',
             'contact_person' => 'nullable|string|max:150',
             'mobile' => 'nullable|string|max:50',
             'business_category' => 'nullable|string|max:100',
@@ -312,8 +504,9 @@ class ProjectController extends Controller
 
         $issueComment = $validated['issue_comment'] ?? ($validated['comments'] ?? '');
 
-        // 3. Create Project
-        $project = Project::create([
+        $parsedBR = $this->parseLegacyBannerReel($validated['banner_reel'] ?? null, $validated['dvc'] ?? null);
+
+        $projectData = [
             'customer_id' => $customer->id,
             'custom_project_id' => $customProjectId,
             'project_name' => $validated['project_name'],
@@ -327,9 +520,6 @@ class ProjectController extends Controller
             'sales_person_email' => $validated['sales_person_email'] ?? null,
             'package_lmh' => $validated['package_lmh'] ?? null,
             'product_details' => $validated['product_details'] ?? null,
-            'banner_reel' => $validated['banner_reel'] ?? null,
-            'gmb_access_desc' => $validated['gmb_access_desc'] ?? null,
-            'dvc' => $validated['dvc'] ?? null,
             'total_keyword' => $validated['total_keyword'] ?? null,
             'approved_keywords' => $validated['approved_keywords'] ?? null,
             'first_page' => $validated['first_page'] ?? null,
@@ -347,7 +537,10 @@ class ProjectController extends Controller
             'priority' => $validated['priority'] ?? 'Medium',
             'workflow_stage' => 'Project Created',
             'created_at' => now(),
-        ]);
+        ];
+        
+        $projectData = array_merge($projectData, $parsedBR);
+        $project = Project::create($projectData);
 
         // 4. Save Domain if present
         if (!empty($validated['domain_name'])) {
@@ -419,6 +612,8 @@ class ProjectController extends Controller
             'priority' => 'nullable|in:High,Medium,Low',
             'workflow_stage' => 'nullable|string',
             'developer' => 'nullable|string|max:150',
+            'developer_id' => 'nullable|array',
+            'developer_id.*' => 'exists:users,id',
             'seo_person' => 'nullable|string|max:150',
             'sales_person_name' => 'nullable|string|max:150',
             'sales_person_email' => 'nullable|email|max:150',
@@ -446,9 +641,24 @@ class ProjectController extends Controller
             'include_logo_registration' => 'nullable|boolean',
         ]);
 
+        $developerIdsArray = null;
+        if ($request->has('developer_id')) {
+            $developerIdsArray = $validated['developer_id'];
+            if (!empty($developerIdsArray)) {
+                $names = User::whereIn('id', $developerIdsArray)->pluck('name')->toArray();
+                $validated['developer'] = implode(', ', $names);
+            } else {
+                $validated['developer'] = null;
+            }
+            unset($validated['developer_id']);
+        }
+
         if (isset($validated['issue_comment']) && !isset($validated['comments'])) {
             $validated['comments'] = $validated['issue_comment'];
         }
+
+        $parsedBR = $this->parseLegacyBannerReel($validated['banner_reel'] ?? null, $validated['dvc'] ?? null, $project);
+        $validated = array_merge($validated, $parsedBR);
 
         $project->update($validated);
 
@@ -499,23 +709,24 @@ class ProjectController extends Controller
 
         // Sync Project Assignment Developer & SEO
         $devId = null;
-        if (!empty($validated['developer'])) {
-            $devId = User::whereRaw('LOWER(name) = ?', [strtolower(trim($validated['developer']))])->value('id');
+        if ($developerIdsArray !== null) {
+            $devId = !empty($developerIdsArray) ? json_encode($developerIdsArray) : null;
+        } elseif (!empty($validated['developer'])) {
+            $did = User::whereRaw('LOWER(name) = ?', [strtolower(trim($validated['developer']))])->value('id');
+            if ($did) $devId = json_encode([$did]);
         }
         $seoId = null;
         if (!empty($validated['seo_person'])) {
             $seoId = User::whereRaw('LOWER(name) = ?', [strtolower(trim($validated['seo_person']))])->value('id');
         }
 
-        if ($devId || $seoId) {
-            DB::table('project_assignments')->updateOrInsert(
-                ['project_id' => $project->id],
-                [
-                    'developer_id' => $devId,
-                    'seo_executive_id' => $seoId,
-                ]
-            );
-        }
+        DB::table('project_assignments')->updateOrInsert(
+            ['project_id' => $project->id],
+            [
+                'developer_id' => $devId,
+                'seo_executive_id' => $seoId,
+            ]
+        );
 
         // Handle Logo Registration Checkbox during update
         if (!empty($validated['include_logo_registration']) && $validated['include_logo_registration']) {
@@ -549,7 +760,8 @@ class ProjectController extends Controller
     public function updateAssignment(Request $request, Project $project)
     {
         $validated = $request->validate([
-            'developer_id' => 'nullable|exists:users,id',
+            'developer_id' => 'nullable|array',
+            'developer_id.*' => 'exists:users,id',
             'designer_id' => 'nullable|exists:users,id',
             'seo_executive_id' => 'nullable|exists:users,id',
             'dev_status' => 'nullable|string|max:100',
@@ -559,7 +771,7 @@ class ProjectController extends Controller
         DB::table('project_assignments')->updateOrInsert(
             ['project_id' => $project->id],
             [
-                'developer_id' => $validated['developer_id'] ?? null,
+                'developer_id' => !empty($validated['developer_id']) ? json_encode($validated['developer_id']) : null,
                 'designer_id' => $validated['designer_id'] ?? null,
                 'seo_executive_id' => $validated['seo_executive_id'] ?? null,
                 'dev_status' => $validated['dev_status'] ?? 'Assigned',
@@ -569,12 +781,15 @@ class ProjectController extends Controller
 
         $updates = [];
         if (!empty($validated['developer_id'])) {
-            $updates['developer'] = User::where('id', $validated['developer_id'])->value('name');
+            $names = User::whereIn('id', $validated['developer_id'])->pluck('name')->toArray();
+            $updates['developer'] = implode(', ', $names);
+        } else {
+            $updates['developer'] = null;
         }
         if (!empty($validated['seo_executive_id'])) {
             $updates['seo_person'] = User::where('id', $validated['seo_executive_id'])->value('name');
         }
-        if (!empty($updates)) {
+        if (!empty($updates) || array_key_exists('developer', $updates)) {
             $project->update($updates);
         }
 
@@ -802,14 +1017,14 @@ class ProjectController extends Controller
                         static $customerCounter = 1;
                         $customCustId = 'C-' . rand(100, 999) . '-' . $customerCounter++;
                         $newCustomer = \App\Models\Customer::create([
-                            'custom_id' => substr($customCustId, 0, 30),
-                            'company_name' => substr($companyName, 0, 255),
-                            'client_name' => substr($projectData['temp_client_name'] ?? $companyName, 0, 255),
-                            'contact_person' => substr($projectData['temp_contact_person'] ?? '', 0, 255),
-                            'mobile' => substr($projectData['temp_mobile'] ?? '', 0, 20),
-                            'email' => substr($projectData['temp_email'] ?? ($companyName . '@client.local'), 0, 255),
-                            'address' => substr($projectData['temp_address'] ?? '', 0, 255),
-                            'business_category' => substr($projectData['temp_business_category'] ?? '', 0, 255),
+                            'custom_id' => $customCustId,
+                            'company_name' => $companyName,
+                            'client_name' => $projectData['temp_client_name'] ?? $companyName,
+                            'contact_person' => $projectData['temp_contact_person'] ?? '',
+                            'mobile' => $projectData['temp_mobile'] ?? '',
+                            'email' => $projectData['temp_email'] ?? ($companyName . '@client.local'),
+                            'address' => $projectData['temp_address'] ?? '',
+                            'business_category' => $projectData['temp_business_category'] ?? '',
                             'created_at' => now(),
                         ]);
                         $existingCustomers[$companyName] = $newCustomer->id;
@@ -834,6 +1049,10 @@ class ProjectController extends Controller
                 }
 
                 // Clean up temp keys before inserting into projects table
+                $tempDomainName = $projectData['temp_domain_name'] ?? null;
+                $renewalDate = $projectData['renewal_date'] ?? null;
+                $customerId = $projectData['customer_id'] ?? null;
+
                 unset($projectData['temp_client_name']);
                 unset($projectData['temp_email']);
                 unset($projectData['temp_contact_person']);
@@ -843,11 +1062,23 @@ class ProjectController extends Controller
                 unset($projectData['temp_domain_name']);
 
                 try {
-                    Project::insert($projectData);
+                    $projectId = Project::insertGetId($projectData);
                     $insertedCount++;
-                } catch (\Throwable $e) {
-                    Project::insert($projectData);
-                    $insertedCount++;
+
+                    if (!empty($tempDomainName)) {
+                        $fallbackDate = $renewalDate ?: date('Y-m-d');
+                        \Illuminate\Support\Facades\DB::table('domains_hosting')->insert([
+                            'customer_id' => $customerId,
+                            'project_id' => $projectId,
+                            'domain_name' => $tempDomainName,
+                            'registrar' => 'N/A',
+                            'domain_expiry_date' => $fallbackDate,
+                            'hosting_provider' => 'N/A',
+                            'renewal_date' => $fallbackDate,
+                            'status' => 'Active',
+                            'created_at' => now(),
+                        ]);
+                    }
                 } catch (\Throwable $e) {
                     return redirect()->back()->with('error', 'Error in row: ' . json_encode($projectData) . ' | MSG: ' . $e->getMessage());
                 }

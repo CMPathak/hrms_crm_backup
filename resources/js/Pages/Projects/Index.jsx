@@ -82,10 +82,11 @@ export default function Index({
         });
     };
     const [statusFilter, setStatusFilter] = useState(filters.status || '');
-    const [serviceFilter, setServiceFilter] = useState(filters.service || '');
     const [priorityFilter, setPriorityFilter] = useState(filters.priority || '');
     const [teamFilter, setTeamFilter] = useState(filters.team || '');
-    const [perPage, setPerPage] = useState(5);
+    const [monthFilter, setMonthFilter] = useState(filters.month || '');
+    const [typeFilter, setTypeFilter] = useState(filters.type || 'all');
+    const [perPage, setPerPage] = useState(filters.per_page || 5);
 
     // Modals state
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -129,18 +130,22 @@ export default function Index({
 
     // Apply Filters helper
     const applyFilters = (newFilters = {}) => {
-        const query = {
+        const merged = {
             search,
             status: statusFilter,
-            service: serviceFilter,
             priority: priorityFilter,
             team: teamFilter,
+            month: monthFilter,
+            type: typeFilter,
             per_page: perPage,
             ...newFilters,
         };
 
-        Object.keys(query).forEach((key) => {
-            if (!query[key] || query[key] === 'all') delete query[key];
+        const query = {};
+        Object.keys(merged).forEach((key) => {
+            if (merged[key] && merged[key] !== 'all') {
+                query[key] = merged[key];
+            }
         });
 
         router.get(route('projects.index'), query, {
@@ -157,9 +162,10 @@ export default function Index({
     const resetFilters = () => {
         setSearch('');
         setStatusFilter('');
-        setServiceFilter('');
         setPriorityFilter('');
         setTeamFilter('');
+        setMonthFilter('');
+        setTypeFilter('all');
         setPerPage(50);
         router.get(route('projects.index'), {}, { preserveState: true, replace: true });
     };
@@ -234,6 +240,7 @@ export default function Index({
         priority: 'Medium',
         payment_info: '',
         developer: '',
+        developer_id: [],
         seo_person: '',
         sales_person_name: '',
         sales_person_email: '',
@@ -260,6 +267,15 @@ export default function Index({
 
     const handleOpenEdit = (p) => {
         setEditingProject(p);
+        
+        let devId = p.assignment?.developer_id;
+        if (typeof devId === 'string') {
+            try { devId = JSON.parse(devId); } catch(e) { devId = [devId]; }
+        }
+        if (!Array.isArray(devId)) {
+            devId = devId ? [String(devId)] : [];
+        }
+
         editForm.setData({
             client_name: p.customer?.client_name || '',
             company_name: p.customer?.company_name || '',
@@ -277,6 +293,7 @@ export default function Index({
             priority: p.priority || 'Medium',
             payment_info: p.payment_info || '',
             developer: p.developer || p.assignment?.developer?.name || '',
+            developer_id: devId,
             seo_person: p.seo_person || p.assignment?.seo_executive?.name || '',
             sales_person_name: p.sales_person_name || '',
             sales_person_email: p.sales_person_email || '',
@@ -345,8 +362,15 @@ export default function Index({
 
     const handleOpenAssignment = (p) => {
         setAssignmentProject(p);
+        let devId = p.assignment?.developer_id;
+        if (typeof devId === 'string') {
+            try { devId = JSON.parse(devId); } catch(e) { devId = [devId]; }
+        }
+        if (!Array.isArray(devId)) {
+            devId = devId ? [String(devId)] : [];
+        }
         assignmentForm.setData({
-            developer_id: p.assignment?.developer_id || '',
+            developer_id: devId,
             designer_id: p.assignment?.designer_id || '',
             seo_executive_id: p.assignment?.seo_executive_id || '',
             dev_status: p.assignment?.dev_status || 'Assigned',
@@ -450,50 +474,54 @@ export default function Index({
                     </h1>
                 </div>
 
-                {canCreateProject && (
-                    <div className="flex items-center gap-3">
-                        <a
-                            href={route('projects.export')}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
-                        >
-                            <Download className="w-4 h-4" />
-                            Export
-                        </a>
-                        
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            className="hidden"
-                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                            onChange={handleFileChange}
-                        />
-                        <button
-                            onClick={handleImportClick}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
-                        >
-                            <Upload className="w-4 h-4" />
-                            Import
-                        </button>
+                <div className="flex items-center gap-3">
+                    {isAdmin && (
+                        <>
+                            <a
+                                href={route('projects.export')}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export
+                            </a>
+                            
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                                onChange={handleFileChange}
+                            />
+                            <button
+                                onClick={handleImportClick}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
+                            >
+                                <Upload className="w-4 h-4" />
+                                Import
+                            </button>
+                        </>
+                    )}
 
+                    {canCreateProject && (
                         <button
                             onClick={() => setCreateModalOpen(true)}
                             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-medium rounded-xl shadow-xs transition-colors cursor-pointer"
                         >
-                            <FolderPlus className="w-4 h-4" />
-                            Create Project
+                            <Plus className="w-4 h-4" />
+                            New Project
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {/* Metric Cards */}
-            <MetricCards metrics={metrics} currentFilter={currentFilter} />
+            <MetricCards metrics={metrics} currentFilter={currentFilter} currentType={typeFilter} />
 
             {/* FILTER & SEARCH BAR TOOLBAR (Matching Reference Image 1) */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs mb-6 space-y-3">
                 <form onSubmit={handleSearchSubmit} className="space-y-3">
                     {/* Row 1: Search & Filter Dropdowns */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-center">
                         {/* Search Input */}
                         <div className="relative">
                             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -523,23 +551,6 @@ export default function Index({
                             <option value="Completed">Completed</option>
                             <option value="Hold">On Hold</option>
                             <option value="Closed">Closed</option>
-                        </select>
-
-                        {/* All Services */}
-                        <select
-                            value={serviceFilter}
-                            onChange={(e) => {
-                                setServiceFilter(e.target.value);
-                                applyFilters({ service: e.target.value });
-                            }}
-                            className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700"
-                        >
-                            <option value="">All Services</option>
-                            <option value="Website Development">Website Development</option>
-                            <option value="SEO Optimization">SEO Optimization</option>
-                            <option value="Google Ads Campaign">Google Ads Campaign</option>
-                            <option value="Branding & UI Design">Branding & UI Design</option>
-                            <option value="Full Retainer Package">Full Retainer Package</option>
                         </select>
 
                         {/* All Priorities */}
@@ -573,12 +584,20 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </div>
 
-                    {/* Row 2: Reset Filters */}
-                    <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                        {/* Month Filter */}
+                        <input
+                            type="month"
+                            value={monthFilter}
+                            onChange={(e) => {
+                                setMonthFilter(e.target.value);
+                                applyFilters({ month: e.target.value });
+                            }}
+                            className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700"
+                        />
 
-                        <div className="flex items-center gap-2">
+                        {/* Buttons (5th column) */}
+                        <div className="flex items-center gap-2 justify-end lg:justify-start">
                             <button
                                 type="submit"
                                 className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
@@ -643,6 +662,16 @@ export default function Index({
                             </Link>
                         </div>
                     </div>
+                </div>
+
+                {/* TOP SCROLLBAR - synced with table */}
+                <div
+                    ref={topScrollRef}
+                    onScroll={handleTopScroll}
+                    className="overflow-x-auto"
+                    style={{ height: '12px' }}
+                >
+                    <div style={{ width: tableScrollWidth, height: '1px' }} />
                 </div>
 
                 <div
@@ -782,14 +811,14 @@ export default function Index({
 
                                         {/* 15. Developer */}
                                         <td className="py-1.5 px-4 font-medium text-slate-800 whitespace-nowrap">
-                                            {p.developer || p.assignment?.developer?.name || (
+                                            {p.assignment?.developer?.name || p.developer || (
                                                 <span className="text-slate-400 italic font-normal">Unassigned</span>
                                             )}
                                         </td>
 
                                         {/* 16. SEO Person */}
                                         <td className="py-1.5 px-4 font-medium text-slate-800 whitespace-nowrap">
-                                            {p.seo_person || p.assignment?.seo_executive?.name || (
+                                            {p.assignment?.seo_executive?.name || p.seo_person || (
                                                 <span className="text-slate-400 italic font-normal">Unassigned</span>
                                             )}
                                         </td>
@@ -1112,10 +1141,10 @@ export default function Index({
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Customer Email</label>
                                         <input
-                                            type="email"
+                                            type="text"
                                             value={createForm.data.email}
                                             onChange={(e) => createForm.setData('email', e.target.value)}
-                                            placeholder="client@acme.com"
+                                            placeholder="client1@acme.com, client2@acme.com"
                                             className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl"
                                         />
                                     </div>
@@ -1630,10 +1659,10 @@ export default function Index({
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Customer Email</label>
                                         <input
-                                            type="email"
+                                            type="text"
                                             value={editForm.data.email}
                                             onChange={(e) => editForm.setData('email', e.target.value)}
-                                            placeholder="client@company.com"
+                                            placeholder="client1@company.com, client2@company.com"
                                             className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20"
                                         />
                                     </div>
@@ -1788,17 +1817,64 @@ export default function Index({
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Developer</label>
-                                        <input
-                                            type="text"
-                                            list="editDevList"
-                                            value={editForm.data.developer}
-                                            onChange={(e) => editForm.setData('developer', e.target.value)}
-                                            placeholder="Select or enter developer"
-                                            className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20"
-                                        />
-                                        <datalist id="editDevList">
-                                            {users.map((u) => <option key={u.id} value={u.name} />)}
-                                        </datalist>
+                                        <div className="relative">
+                                            <details className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl group relative z-20 [&_summary::-webkit-details-marker]:hidden">
+                                                <summary className="p-1.5 cursor-pointer list-none flex justify-between items-center outline-none min-h-[42px] focus:bg-white focus:ring-2 focus:ring-amber-500/20 rounded-xl">
+                                                    <div className="flex flex-wrap gap-1 items-center w-full">
+                                                        {(editForm.data.developer_id || []).length > 0 ? (
+                                                            (editForm.data.developer_id || []).map(id => {
+                                                                const user = users.find(u => String(u.id) === String(id));
+                                                                if (!user) return null;
+                                                                return (
+                                                                    <span key={id} className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded-md">
+                                                                        {user.name}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                const current = (editForm.data.developer_id || []).filter(v => v !== String(id));
+                                                                                editForm.setData('developer_id', current);
+                                                                            }}
+                                                                            className="hover:text-red-500 font-bold ml-0.5"
+                                                                        >
+                                                                            &times;
+                                                                        </button>
+                                                                    </span>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <span className="text-slate-400 px-2 py-1">-- Select Developers --</span>
+                                                        )}
+                                                    </div>
+                                                    <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                                </summary>
+                                                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                                    <div className="py-1">
+                                                        {users.map((u) => {
+                                                            const selected = (editForm.data.developer_id || []).includes(String(u.id));
+                                                            return (
+                                                                <div
+                                                                    key={u.id}
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        let current = [...(editForm.data.developer_id || [])];
+                                                                        if (selected) {
+                                                                            current = current.filter(id => id !== String(u.id));
+                                                                        } else {
+                                                                            current.push(String(u.id));
+                                                                        }
+                                                                        editForm.setData('developer_id', current);
+                                                                    }}
+                                                                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-amber-50 ${selected ? 'bg-amber-100 text-amber-800' : 'text-slate-700'}`}
+                                                                >
+                                                                    {u.name}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">SEO Person</label>
@@ -2185,16 +2261,64 @@ export default function Index({
                         <form onSubmit={handleAssignmentSubmit} className="pt-4 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Developer</label>
-                                <select
-                                    value={assignmentForm.data.developer_id}
-                                    onChange={(e) => assignmentForm.setData('developer_id', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl"
-                                >
-                                    <option value="">-- Unassigned Developer --</option>
-                                    {users.map((u) => (
-                                        <option key={u.id} value={u.id}>{u.name}</option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                    <details className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl group relative z-20 [&_summary::-webkit-details-marker]:hidden">
+                                        <summary className="p-1.5 cursor-pointer list-none flex justify-between items-center outline-none min-h-[42px]">
+                                            <div className="flex flex-wrap gap-1 items-center w-full">
+                                                {(assignmentForm.data.developer_id || []).length > 0 ? (
+                                                    (assignmentForm.data.developer_id || []).map(id => {
+                                                        const user = users.find(u => String(u.id) === String(id));
+                                                        if (!user) return null;
+                                                        return (
+                                                            <span key={id} className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-200 text-slate-700 rounded-md">
+                                                                {user.name}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        const current = (assignmentForm.data.developer_id || []).filter(v => v !== String(id));
+                                                                        assignmentForm.setData('developer_id', current);
+                                                                    }}
+                                                                    className="hover:text-red-500 font-bold ml-0.5"
+                                                                >
+                                                                    &times;
+                                                                </button>
+                                                            </span>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <span className="text-slate-400 px-2 py-1">-- Select Developers --</span>
+                                                )}
+                                            </div>
+                                            <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </summary>
+                                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                            <div className="py-1">
+                                                {users.map((u) => {
+                                                    const selected = (assignmentForm.data.developer_id || []).includes(String(u.id));
+                                                    return (
+                                                        <div
+                                                            key={u.id}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                let current = [...(assignmentForm.data.developer_id || [])];
+                                                                if (selected) {
+                                                                    current = current.filter(id => id !== String(u.id));
+                                                                } else {
+                                                                    current.push(String(u.id));
+                                                                }
+                                                                assignmentForm.setData('developer_id', current);
+                                                            }}
+                                                            className={`px-3 py-2 text-sm cursor-pointer hover:bg-sky-50 ${selected ? 'bg-sky-100 text-sky-700' : 'text-slate-700'}`}
+                                                        >
+                                                            {u.name}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </details>
+                                </div>
                             </div>
 
                             <div>

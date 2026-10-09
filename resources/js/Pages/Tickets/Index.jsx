@@ -509,7 +509,7 @@ export default function TicketsIndex({
                         {/* Original Message & Conversation replies */}
                         <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-4">
                             {/* Original issue */}
-                            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
                                 <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
                                     <span>Original Issue / Query</span>
                                     <span className="text-[11px] text-slate-400">
@@ -525,7 +525,7 @@ export default function TicketsIndex({
                             {ticketRepliesList.map((rep) => (
                                 <div
                                     key={rep.id}
-                                    className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs"
+                                    className="p-5 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs"
                                 >
                                     <div className="flex items-center justify-between font-semibold text-blue-950 mb-1">
                                         <span className="flex items-center gap-1.5">

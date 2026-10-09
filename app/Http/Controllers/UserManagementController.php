@@ -26,20 +26,28 @@ class UserManagementController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        if (!$user || (!$user->isAdmin() && !$user->hasRole('sales_manager'))) {
-            abort(403, 'Unauthorized. Only Admin and Sales Manager can view Users.');
+        if (!$user || (!$user->isAdmin() && !$user->hasRole('sales_manager') && !$user->hasRole('seo_manager') && !$user->hasRole('developer_manager'))) {
+            abort(403, 'Unauthorized. Only Admin, Sales Manager, SEO Manager, and Developer Manager can view Users.');
         }
 
         $currentTab = strtolower($request->input('tab', 'all'));
         $search = $request->input('search', '');
 
-        // Base user query with role
-        $query = User::with('role')->orderBy('id', 'desc');
+        // Base user query with role and manager
+        $query = User::with(['role', 'manager'])->orderBy('id', 'desc');
 
         if ($request->user() && $request->user()->hasRole('sales_manager')) {
             $query->whereHas('role', function ($q) {
                 $q->where('role_name', 'sales');
-            });
+            })->where('manager_id', $request->user()->id);
+        } elseif ($request->user() && $request->user()->hasRole('seo_manager')) {
+            $query->whereHas('role', function ($q) {
+                $q->where('role_name', 'seo_executive');
+            })->where('manager_id', $request->user()->id);
+        } elseif ($request->user() && $request->user()->hasRole('developer_manager')) {
+            $query->whereHas('role', function ($q) {
+                $q->whereIn('role_name', ['developer', 'designer']);
+            })->where('manager_id', $request->user()->id);
         }
 
         if (!empty($search)) {
@@ -77,11 +85,13 @@ class UserManagementController extends Controller
                 'phone' => $u->phone,
                 'status' => $u->status ?? 'active',
                 'role_id' => $u->role_id,
+                'manager_id' => $u->manager_id,
                 'role' => $u->role ? [
                     'id' => $u->role->id,
                     'role_name' => $u->role->role_name,
                     'display_name' => $u->role->display_name,
                 ] : null,
+                'manager_name' => $u->manager ? $u->manager->name : null,
                 'created_at' => $u->created_at ? Carbon::parse($u->created_at)->format('M d, Y') : '—',
             ];
         });
@@ -104,6 +114,11 @@ class UserManagementController extends Controller
         // Roles list for dropdown
         $roles = Role::orderBy('display_name', 'asc')->get(['id', 'role_name', 'display_name', 'description']);
 
+        // Managers list for dropdown
+        $managers = User::whereHas('role', function ($q) {
+            $q->whereIn('role_name', ['super_admin', 'admin', 'seo_manager', 'developer_manager', 'sales_manager']);
+        })->with('role:id,role_name,display_name')->orderBy('name', 'asc')->get(['id', 'name', 'role_id']);
+
         return Inertia::render('Users/Index', [
             'users' => $users,
             'roles' => $roles,
@@ -116,6 +131,7 @@ class UserManagementController extends Controller
             ],
             'currentTab' => $currentTab,
             'search' => $search,
+            'managers' => $managers,
         ]);
     }
 
@@ -128,6 +144,7 @@ class UserManagementController extends Controller
             'email' => 'required|email|max:150|unique:users,email',
             'phone' => 'nullable|string|max:20',
             'role_id' => 'required|exists:roles,id',
+            'manager_id' => 'nullable|exists:users,id',
             'password' => 'required|string|min:6',
             'status' => 'required|in:active,inactive',
         ]);
@@ -137,6 +154,7 @@ class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'role_id' => $validated['role_id'],
+            'manager_id' => $validated['manager_id'] ?? null,
             'password' => Hash::make($validated['password']),
             'status' => $validated['status'],
             'created_at' => now(),
@@ -154,6 +172,7 @@ class UserManagementController extends Controller
             'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => 'nullable|string|max:20',
             'role_id' => 'required|exists:roles,id',
+            'manager_id' => 'nullable|exists:users,id',
             'password' => 'nullable|string|min:6',
             'status' => 'required|in:active,inactive',
         ]);
@@ -163,6 +182,7 @@ class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'role_id' => $validated['role_id'],
+            'manager_id' => $validated['manager_id'] ?? null,
             'status' => $validated['status'],
         ];
 

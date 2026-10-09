@@ -14,6 +14,14 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
     return redirect()->route('login');
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
 });
 
 // Temporary Setup Route (for shared hosting / Plesk without terminal)
@@ -24,10 +32,18 @@ Route::get('/run-setup', function () {
         \Illuminate\Support\Facades\Artisan::call('config:cache');
         \Illuminate\Support\Facades\Artisan::call('route:cache');
         \Illuminate\Support\Facades\Artisan::call('view:cache');
-        return "✅ Commands executed successfully! Storage linked, DB migrated, and cache cleared.";
+        return "? Commands executed successfully! Storage linked, DB migrated, and cache cleared.";
     } catch (\Exception $e) {
-        return "❌ Error: " . $e->getMessage();
+        return "? Error: " . $e->getMessage();
     }
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
 });
 
 Route::middleware('auth')->group(function () {
@@ -59,6 +75,14 @@ Route::middleware('auth')->group(function () {
 
     // Logo Registrations Route
     Route::get('/logo-registrations', [LogoRegistrationController::class, 'index'])->name('logo-registrations.index');
+
+    // Banners & Reels Routes
+    Route::get('/banners-reels', [\App\Http\Controllers\BannersReelsController::class, 'index'])->name('banners-reels.index');
+    Route::put('/banners-reels/{project}', [\App\Http\Controllers\BannersReelsController::class, 'update'])->name('banners-reels.update');
+
+    // SEO Routes
+    Route::get('/seo', [\App\Http\Controllers\SeoController::class, 'index'])->name('seo.index');
+    Route::put('/seo/{project}', [\App\Http\Controllers\SeoController::class, 'update'])->name('seo.update');
 
     // Audit Trail Route (Admin Only)
     Route::get('/audit-trail', [AuditTrailController::class, 'index'])->name('audit-trail');
@@ -92,6 +116,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
 });
 
 require __DIR__.'/auth.php';
@@ -112,10 +144,26 @@ Route::get('/fix-db', function() {
         }
     }
     
+    if (empty($errors)) {
+        return response()->json(['status' => 'Success', 'message' => 'DB Columns fixed for long Excel data.']);
+    } else {
+        return response()->json(['status' => 'Some errors occurred', 'errors' => $errors]);
+    }
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
+});
+
 Route::get('/reset-db', function() {
     \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
     \Illuminate\Support\Facades\DB::table('projects')->truncate();
     \Illuminate\Support\Facades\DB::table('customers')->truncate();
+    \Illuminate\Support\Facades\DB::table('domains_hosting')->truncate();
     \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     
     // Fix columns on live server to prevent "Data too long" errors
@@ -125,4 +173,28 @@ Route::get('/reset-db', function() {
     } catch(\Exception $e) {}
     
     return "<h1>Success! All Old/Wrong Projects & Customers have been deleted!</h1><p>Database columns have also been expanded automatically. You can now go back to your dashboard and import the Excel sheet.</p>";
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
 });
+Route::middleware('auth')->group(function () {
+    Route::get('/ftp-logins', [\App\Http\Controllers\FtpLoginController::class, 'index'])->name('ftp-logins.index');
+    Route::put('/ftp-logins/{project}', [\App\Http\Controllers\FtpLoginController::class, 'update'])->name('ftp-logins.update');
+
+    Route::get('/targets', [\App\Http\Controllers\TargetController::class, 'index'])->name('targets.index');
+    Route::put('/targets/{id}', [\App\Http\Controllers\TargetController::class, 'update'])->name('targets.update');
+
+
+
+    Route::get('/followups/export', [\App\Http\Controllers\SalesFollowupController::class, 'export'])->name('followups.export');
+    Route::post('/followups/import', [\App\Http\Controllers\SalesFollowupController::class, 'import'])->name('followups.import');
+    Route::get('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'index'])->name('followups.index');
+    Route::post('/followups', [\App\Http\Controllers\SalesFollowupController::class, 'store'])->name('followups.store');
+    Route::put('/followups/{id}', [\App\Http\Controllers\SalesFollowupController::class, 'update'])->name('followups.update');
+});
+

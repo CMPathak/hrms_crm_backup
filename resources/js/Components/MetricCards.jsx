@@ -10,10 +10,11 @@ import {
     Key,
     Share2,
     Video,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Search
 } from 'lucide-react';
 
-export default function MetricCards({ metrics, currentFilter = 'all' }) {
+export default function MetricCards({ metrics, currentFilter = 'all', currentType = 'all' }) {
     if (!metrics) return null;
 
     const cards = [
@@ -91,7 +92,7 @@ export default function MetricCards({ metrics, currentFilter = 'all' }) {
                         <Link
                             key={idx}
                             href={card.href}
-                            className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all duration-200 h-full shadow-sm hover:shadow-md ${
+                            className={`group relative flex flex-col justify-between p-5 rounded-2xl border transition-all duration-200 h-full shadow-sm hover:shadow-md ${
                                 card.active
                                     ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/10'
                                     : 'bg-white border-slate-200/80 hover:border-slate-300'
@@ -118,9 +119,9 @@ export default function MetricCards({ metrics, currentFilter = 'all' }) {
             </div>
 
             {/* Action Notifications Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
                 {/* GMB Card */}
-                <div className="p-3.5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-rose-500 to-red-600 flex flex-col justify-between min-h-[105px]">
+                <Link href={route('projects.index', { type: currentType === 'gmb' ? 'all' : 'gmb' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-rose-500 to-red-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'gmb' ? 'ring-4 ring-offset-2 ring-rose-500' : ''}`}>
                     <div className="flex items-center justify-between text-xs font-semibold opacity-90">
                         <span className="flex items-center gap-1.5">
                             <Key className="w-3.5 h-3.5" /> GMB Access
@@ -137,10 +138,10 @@ export default function MetricCards({ metrics, currentFilter = 'all' }) {
                             <span className="text-xl font-bold text-amber-300">{notifs.gmbPending ?? 0}</span>
                         </div>
                     </div>
-                </div>
+                </Link>
 
                 {/* Social Media Card */}
-                <div className="p-3.5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-between min-h-[105px]">
+                <Link href={route('projects.index', { type: currentType === 'social' ? 'all' : 'social' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'social' ? 'ring-4 ring-offset-2 ring-indigo-500' : ''}`}>
                     <div className="flex items-center justify-between text-xs font-semibold opacity-90">
                         <span className="flex items-center gap-1.5">
                             <Share2 className="w-3.5 h-3.5" /> Social Media
@@ -157,10 +158,10 @@ export default function MetricCards({ metrics, currentFilter = 'all' }) {
                             <span className="text-xl font-bold text-amber-300">{notifs.smPending ?? 0}</span>
                         </div>
                     </div>
-                </div>
+                </Link>
 
                 {/* DVC Card */}
-                <div className="p-3.5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-cyan-500 to-teal-600 flex flex-col justify-between min-h-[105px]">
+                <Link href={route('projects.index', { type: currentType === 'dvc' ? 'all' : 'dvc' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-cyan-500 to-teal-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'dvc' ? 'ring-4 ring-offset-2 ring-teal-500' : ''}`}>
                     <div className="flex items-center justify-between text-xs font-semibold opacity-90">
                         <span className="flex items-center gap-1.5">
                             <Video className="w-3.5 h-3.5" /> DVC
@@ -177,27 +178,66 @@ export default function MetricCards({ metrics, currentFilter = 'all' }) {
                             <span className="text-xl font-bold text-amber-300">{notifs.dvcPending ?? 0}</span>
                         </div>
                     </div>
-                </div>
+                </Link>
 
-                {/* Banner & Reel Card */}
-                <div className="p-3.5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-pink-500 to-rose-600 flex flex-col justify-between min-h-[105px]">
+                {/* Banners Card */}
+                <Link href={route('projects.index', { type: currentType === 'banners' ? 'all' : 'banners' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-pink-500 to-rose-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'banners' ? 'ring-4 ring-offset-2 ring-pink-500' : ''}`}>
                     <div className="flex items-center justify-between text-xs font-semibold opacity-90">
                         <span className="flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5" /> Banner & Reel
+                            <ImageIcon className="w-3.5 h-3.5" /> Banners
                         </span>
                         <span className="opacity-75">Status</span>
                     </div>
                     <div className="flex justify-between items-end pt-2 border-t border-white/15">
                         <div>
                             <span className="text-[0.7rem] uppercase tracking-wider opacity-80 block">Total</span>
-                            <span className="text-xl font-bold">{notifs.brTotal ?? 0}</span>
+                            <span className="text-xl font-bold">{notifs.bannersTotal ?? 0}</span>
                         </div>
                         <div className="text-right">
                             <span className="text-[0.7rem] uppercase tracking-wider text-amber-200 block">Pending</span>
-                            <span className="text-xl font-bold text-amber-300">{notifs.brPending ?? 0}</span>
+                            <span className="text-xl font-bold text-amber-300">{notifs.bannersPending ?? 0}</span>
                         </div>
                     </div>
-                </div>
+                </Link>
+
+                {/* Reels Card */}
+                <Link href={route('projects.index', { type: currentType === 'reels' ? 'all' : 'reels' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'reels' ? 'ring-4 ring-offset-2 ring-indigo-500' : ''}`}>
+                    <div className="flex items-center justify-between text-xs font-semibold opacity-90">
+                        <span className="flex items-center gap-1.5">
+                            <Video className="w-3.5 h-3.5" /> Reels
+                        </span>
+                        <span className="opacity-75">Status</span>
+                    </div>
+                    <div className="flex justify-between items-end pt-2 border-t border-white/15">
+                        <div>
+                            <span className="text-[0.7rem] uppercase tracking-wider opacity-80 block">Total</span>
+                            <span className="text-xl font-bold">{notifs.reelsTotal ?? 0}</span>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-[0.7rem] uppercase tracking-wider text-amber-200 block">Pending</span>
+                            <span className="text-xl font-bold text-amber-300">{notifs.reelsPending ?? 0}</span>
+                        </div>
+                    </div>
+                </Link>
+                {/* Keywords Card */}
+                <Link href={route('projects.index', { type: currentType === 'keywords' ? 'all' : 'keywords' })} className={`p-5 rounded-2xl text-white shadow-sm bg-gradient-to-br from-green-500 to-emerald-600 flex flex-col justify-between min-h-[130px] transition-transform hover:scale-[1.02] ${currentType === 'keywords' ? 'ring-4 ring-offset-2 ring-emerald-500' : ''}`}>
+                    <div className="flex items-center justify-between text-xs font-semibold opacity-90">
+                        <span className="flex items-center gap-1.5">
+                            <Search className="w-3.5 h-3.5" /> Keywords
+                        </span>
+                        <span className="opacity-75">Status</span>
+                    </div>
+                    <div className="flex justify-between items-end pt-2 border-t border-white/15">
+                        <div>
+                            <span className="text-[0.7rem] uppercase tracking-wider opacity-80 block">Total</span>
+                            <span className="text-xl font-bold">{notifs.kwTotal ?? 0}</span>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-[0.7rem] uppercase tracking-wider text-amber-200 block">Pending</span>
+                            <span className="text-xl font-bold text-amber-300">{notifs.kwPending ?? 0}</span>
+                        </div>
+                    </div>
+                </Link>
             </div>
         </div>
     );

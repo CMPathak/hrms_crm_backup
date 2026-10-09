@@ -10,9 +10,37 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
+    private function getAccessibleUserIds($currentUser)
+    {
+        $userIds = [$currentUser->id];
+        
+        if ($currentUser->isAdmin()) {
+            return []; // Empty means all users are accessible
+        }
+        
+        $roleName = strtolower($currentUser->role->role_name ?? '');
+        
+        if ($roleName === 'seo_manager') {
+            $childIds = User::whereHas('role', function($q) {
+                $q->where('role_name', 'seo_executive');
+            })->pluck('id')->toArray();
+            $userIds = array_merge($userIds, $childIds);
+        } elseif ($roleName === 'developer_manager') {
+            $childIds = User::whereHas('role', function($q) {
+                $q->where('role_name', 'developer');
+            })->pluck('id')->toArray();
+            $userIds = array_merge($userIds, $childIds);
+        }
+        
+        $subIds = User::where('manager_id', $currentUser->id)->pluck('id')->toArray();
+        $userIds = array_merge($userIds, $subIds);
+        
+        return array_unique($userIds);
+    }
     public function index(Request $request): Response
     {
         $currentUser = $request->user();
@@ -33,8 +61,15 @@ class TaskController extends Controller
             'assigner:id,name',
         ]);
 
-        if (!$isManager) {
-            $query->where('assigned_to', $currentUser->id);
+        $accessibleUserIds = $this->getAccessibleUserIds($currentUser);
+        $isFullAdmin = empty($accessibleUserIds);
+
+        if (!$isFullAdmin) {
+            if ($assignedTo && in_array($assignedTo, $accessibleUserIds)) {
+                $query->where('assigned_to', $assignedTo);
+            } else {
+                $query->whereIn('assigned_to', $accessibleUserIds);
+            }
         } elseif ($assignedTo) {
             $query->where('assigned_to', $assignedTo);
         }
@@ -70,8 +105,8 @@ class TaskController extends Controller
 
         // Stats calculation
         $baseStatQuery = Task::query();
-        if (!$isManager) {
-            $baseStatQuery->where('assigned_to', $currentUser->id);
+        if (!$isFullAdmin) {
+            $baseStatQuery->whereIn('assigned_to', $accessibleUserIds);
         }
 
         $stats = [
@@ -85,8 +120,8 @@ class TaskController extends Controller
 
         $projects = Project::select('id', 'project_name')->orderBy('project_name')->get();
         $usersQuery = User::select('id', 'name', 'email')->orderBy('name');
-        if (!$isManager) {
-            $usersQuery->where('id', $currentUser->id);
+        if (!$isFullAdmin) {
+            $usersQuery->whereIn('id', $accessibleUserIds);
         }
         $users = $usersQuery->get();
 
@@ -102,7 +137,7 @@ class TaskController extends Controller
                 'project_id' => $projectId ?? '',
                 'assigned_to' => $assignedTo ?? '',
             ],
-            'isManager' => $isManager,
+            'isManager' => $isFullAdmin || count($accessibleUserIds) > 1,
         ]);
     }
 
@@ -114,8 +149,14 @@ class TaskController extends Controller
         }
         
         $currentUser = $request->user();
-        if (!$currentUser->isAdmin()) {
-            $input['assigned_to'] = $currentUser->id;
+        $accessibleUserIds = $this->getAccessibleUserIds($currentUser);
+        $isFullAdmin = empty($accessibleUserIds);
+
+        if (!$isFullAdmin) {
+            // If the requested assigned_to is not in their accessible list, force it to their own ID
+            if (empty($input['assigned_to']) || !in_array($input['assigned_to'], $accessibleUserIds)) {
+                $input['assigned_to'] = $currentUser->id;
+            }
         }
 
         $validated = validator($input, [
@@ -145,8 +186,14 @@ class TaskController extends Controller
         }
         
         $currentUser = $request->user();
-        if (!$currentUser->isAdmin()) {
-            $input['assigned_to'] = $currentUser->id;
+        $accessibleUserIds = $this->getAccessibleUserIds($currentUser);
+        $isFullAdmin = empty($accessibleUserIds);
+
+        if (!$isFullAdmin) {
+            // If the requested assigned_to is not in their accessible list, force it to their own ID
+            if (empty($input['assigned_to']) || !in_array($input['assigned_to'], $accessibleUserIds)) {
+                $input['assigned_to'] = $currentUser->id;
+            }
         }
 
         $validated = validator($input, [

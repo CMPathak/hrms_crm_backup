@@ -14,7 +14,9 @@ class DomainController extends Controller
     {
         $today = Carbon::today()->toDateString();
         $in7Days = Carbon::today()->addDays(7)->toDateString();
+        $in30Days = Carbon::today()->addDays(30)->toDateString();
         $in60Days = Carbon::today()->addDays(60)->toDateString();
+        $in90Days = Carbon::today()->addDays(90)->toDateString();
 
         $search = $request->input('search', '');
         $statusTab = strtolower($request->input('tab', 'all'));
@@ -55,10 +57,16 @@ class DomainController extends Controller
         }
 
         // Tab Filter
-        if ($statusTab === 'expiring_soon') {
+        if ($statusTab === 'renew_3m') {
+            $query->where('dh.domain_expiry_date', '>=', $today)
+                  ->where('dh.domain_expiry_date', '<=', $in90Days);
+        } elseif ($statusTab === 'renew_2m') {
             $query->where('dh.domain_expiry_date', '>=', $today)
                   ->where('dh.domain_expiry_date', '<=', $in60Days);
-        } elseif ($statusTab === 'critical') {
+        } elseif ($statusTab === 'renew_1m') {
+            $query->where('dh.domain_expiry_date', '>=', $today)
+                  ->where('dh.domain_expiry_date', '<=', $in30Days);
+        } elseif ($statusTab === 'renew_7d') {
             $query->where('dh.domain_expiry_date', '>=', $today)
                   ->where('dh.domain_expiry_date', '<=', $in7Days);
         } elseif ($statusTab === 'expired') {
@@ -112,22 +120,32 @@ class DomainController extends Controller
         // Summary KPI Counts
         $totalCount = DB::table('domains_hosting')->count();
         $expiredCount = DB::table('domains_hosting')->where('domain_expiry_date', '<', $today)->count();
-        $criticalCount = DB::table('domains_hosting')
-            ->where('domain_expiry_date', '>=', $today)
-            ->where('domain_expiry_date', '<=', $in7Days)
-            ->count();
-        $expiringSoonCount = DB::table('domains_hosting')
-            ->where('domain_expiry_date', '>=', $today)
-            ->where('domain_expiry_date', '<=', $in60Days)
-            ->count();
         $activeCount = DB::table('domains_hosting')->where('domain_expiry_date', '>=', $today)->count();
+
+        $renew7d = DB::table('domains_hosting')
+            ->whereBetween('domain_expiry_date', [$today, $in7Days])
+            ->count();
+            
+        $renew1m = DB::table('domains_hosting')
+            ->whereBetween('domain_expiry_date', [$today, $in30Days])
+            ->count();
+            
+        $renew2m = DB::table('domains_hosting')
+            ->whereBetween('domain_expiry_date', [$today, $in60Days])
+            ->count();
+            
+        $renew3m = DB::table('domains_hosting')
+            ->whereBetween('domain_expiry_date', [$today, $in90Days])
+            ->count();
 
         return Inertia::render('Domains/Index', [
             'domains' => $domains,
             'metrics' => [
                 'total' => $totalCount,
-                'expiring_soon' => $expiringSoonCount,
-                'critical' => $criticalCount,
+                'renew_7d' => $renew7d,
+                'renew_1m' => $renew1m,
+                'renew_2m' => $renew2m,
+                'renew_3m' => $renew3m,
                 'expired' => $expiredCount,
                 'active' => $activeCount,
             ],

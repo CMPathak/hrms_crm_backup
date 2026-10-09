@@ -22,7 +22,7 @@ class DashboardController extends Controller
         }
 
         $metricQuery = Project::query()
-            ->select(['id', 'customer_id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel']);
+            ->select(['id', 'customer_id', 'status', 'gmb_access_desc', 'comments', 'product_details', 'description', 'dvc', 'banner_reel', 'total_banners', 'completed_banners', 'total_reels', 'completed_reels', 'total_dvc', 'completed_dvc', 'total_keyword', 'approved_keywords']);
 
         if ($currentUser && !$currentUser->isAdmin()) {
             $metricQuery->where(function ($q) use ($currentUser) {
@@ -34,16 +34,31 @@ class DashboardController extends Controller
                          ->orWhere('seo_executive_id', $currentUser->id)
                          ->orWhere('designer_id', $currentUser->id);
                   });
+                  
+                if ($currentUser->hasRole('seo_manager')) {
+                    $q->orWhereNotNull('seo_person')
+                      ->orWhereHas('assignment', function ($aq) {
+                          $aq->whereNotNull('seo_executive_id');
+                      });
+                }
+                
+                if ($currentUser->hasRole('developer_manager')) {
+                    $q->orWhereNotNull('developer')
+                      ->orWhereHas('assignment', function ($aq) {
+                          $aq->whereNotNull('developer_id');
+                      });
+                }
+                
+                if ($currentUser->hasRole('sales_manager')) {
+                    $q->orWhereNotNull('sales_person_name');
+                }
             });
         }
         
         $metricProjects = $metricQuery->get();
 
-        if ($currentUser && !$currentUser->isAdmin()) {
-            $customerCount = $metricProjects->pluck('customer_id')->unique()->count();
-        } else {
-            $customerCount = Customer::count();
-        }
+        // Count based on unique project IDs (table ID) so even if customer names repeat, the ID remains single
+        $customerCount = $metricProjects->pluck('id')->unique()->count();
         $holdCount = 0;
         $completedCount = 0;
         $closedCount = 0;
@@ -53,7 +68,9 @@ class DashboardController extends Controller
         $gmbTotal = 0; $gmbPending = 0;
         $smTotal = 0; $smPending = 0;
         $dvcTotal = 0; $dvcPending = 0;
-        $brTotal = 0; $brPending = 0;
+        $bannersTotal = 0; $bannersPending = 0;
+        $reelsTotal = 0; $reelsPending = 0;
+        $kwTotal = 0; $kwPending = 0;
 
         foreach ($metricProjects as $p) {
             $st = strtolower(trim($p->status ?? ''));
@@ -91,20 +108,43 @@ class DashboardController extends Controller
             }
 
             // DVC
-            $dvc = strtolower(trim($p->dvc ?? ''));
-            if (!empty($dvc) && $dvc !== 'na') {
-                $dvcTotal++;
-                if ($dvc !== 'done' && (str_contains($dvc, 'pending') || str_contains($dvc, 'required') || str_contains($dvc, 'no') || str_contains($dvc, 'need') || empty($dvc))) {
-                    $dvcPending++;
+            if ((int)($p->total_dvc ?? 0) > 0) {
+                $dvcTotal += (int)$p->total_dvc;
+                $dvcPending += max(0, (int)$p->total_dvc - (int)($p->completed_dvc ?? 0));
+            } else {
+                $dvc = strtolower(trim($p->dvc ?? ''));
+                if (!empty($dvc) && $dvc !== 'na') {
+                    $dvcTotal++;
+                    if ($dvc !== 'done' && (str_contains($dvc, 'pending') || str_contains($dvc, 'required') || str_contains($dvc, 'no') || str_contains($dvc, 'need') || empty($dvc))) {
+                        $dvcPending++;
+                    }
                 }
             }
 
-            // Banner & Reel
-            $br = strtolower(trim($p->banner_reel ?? ''));
-            if (!empty($br) && $br !== 'na') {
-                $brTotal++;
-                if ($br !== 'done' && (str_contains($br, 'pending') || str_contains($br, 'required') || str_contains($br, 'no') || str_contains($br, 'need') || empty($br))) {
-                    $brPending++;
+            // Banners
+            if ((int)($p->total_banners ?? 0) > 0) {
+                $bannersTotal += (int)$p->total_banners;
+                $bannersPending += max(0, (int)$p->total_banners - (int)($p->completed_banners ?? 0));
+            }
+
+            // Reels
+            if ((int)($p->total_reels ?? 0) > 0) {
+                $reelsTotal += (int)$p->total_reels;
+                $reelsPending += max(0, (int)$p->total_reels - (int)($p->completed_reels ?? 0));
+            }
+            
+            // Keywords
+            $tk = (int)trim($p->total_keyword ?? '0');
+            if ($tk > 0) {
+                $kwTotal += $tk;
+                $ak = strtolower(trim($p->approved_keywords ?? ''));
+                if ($ak === 'done') {
+                    // 0 pending
+                } elseif (!empty($ak)) {
+                    $lines = preg_match_all('/[^\r\n]+/', $p->approved_keywords, $matches);
+                    $kwPending += max(0, $tk - $lines);
+                } else {
+                    $kwPending += $tk;
                 }
             }
         }
@@ -123,10 +163,28 @@ class DashboardController extends Controller
                 'smPending' => $smPending,
                 'dvcTotal' => $dvcTotal,
                 'dvcPending' => $dvcPending,
-                'brTotal' => $brTotal,
-                'brPending' => $brPending,
+                'bannersTotal' => $bannersTotal,
+                'bannersPending' => $bannersPending,
+                'reelsTotal' => $reelsTotal,
+                'reelsPending' => $reelsPending,
+                'kwTotal' => $kwTotal,
+                'kwPending' => $kwPending,
             ]
         ];
+
+        // Domain Metrics
+        $todayStr = Carbon::today()->toDateString();
+        $in7DaysStr = Carbon::today()->addDays(7)->toDateString();
+        $in30DaysStr = Carbon::today()->addDays(30)->toDateString();
+        $in60DaysStr = Carbon::today()->addDays(60)->toDateString();
+        $in90DaysStr = Carbon::today()->addDays(90)->toDateString();
+
+        $metrics['domain_total'] = DB::table('domains_hosting')->count();
+        $metrics['domain_expired'] = DB::table('domains_hosting')->where('domain_expiry_date', '<', $todayStr)->count();
+        $metrics['domain_renew_7d'] = DB::table('domains_hosting')->whereBetween('domain_expiry_date', [$todayStr, $in7DaysStr])->count();
+        $metrics['domain_renew_1m'] = DB::table('domains_hosting')->whereBetween('domain_expiry_date', [$todayStr, $in30DaysStr])->count();
+        $metrics['domain_renew_2m'] = DB::table('domains_hosting')->whereBetween('domain_expiry_date', [$todayStr, $in60DaysStr])->count();
+        $metrics['domain_renew_3m'] = DB::table('domains_hosting')->whereBetween('domain_expiry_date', [$todayStr, $in90DaysStr])->count();
 
         // Developer Team Projects
         $devQuery = DB::table('projects as p')
@@ -226,8 +284,20 @@ class DashboardController extends Controller
             ->select([
                 'dh.id', 'dh.domain_name', 'dh.domain_expiry_date',
                 'c.company_name', 'c.client_name'
-            ])
-            ->whereBetween('dh.domain_expiry_date', [$today, $sixtyDays]);
+            ]);
+
+        $domainTab = $request->input('domain_tab', 'renew_2m');
+        if ($domainTab === 'renew_3m') {
+            $domainsQuery->whereBetween('dh.domain_expiry_date', [$todayStr, $in90DaysStr]);
+        } elseif ($domainTab === 'renew_2m') {
+            $domainsQuery->whereBetween('dh.domain_expiry_date', [$todayStr, $in60DaysStr]);
+        } elseif ($domainTab === 'renew_1m') {
+            $domainsQuery->whereBetween('dh.domain_expiry_date', [$todayStr, $in30DaysStr]);
+        } elseif ($domainTab === 'renew_7d') {
+            $domainsQuery->whereBetween('dh.domain_expiry_date', [$todayStr, $in7DaysStr]);
+        } elseif ($domainTab === 'expired') {
+            $domainsQuery->where('dh.domain_expiry_date', '<', $todayStr);
+        }
 
         if ($currentUser && !$currentUser->isAdmin()) {
             $domainsQuery->where(function ($q) use ($currentUser) {
@@ -303,6 +373,10 @@ class DashboardController extends Controller
                 });
         }
 
+        // Sales Target & Achieved Logic
+        $salesTarget = (float)($currentUser->monthly_target ?? 0);
+        $salesAchieved = (float)($currentUser->monthly_achieved ?? 0);
+
         return Inertia::render('Dashboard', [
             'metrics' => $metrics,
             'devProjects' => $devProjects,
@@ -313,6 +387,9 @@ class DashboardController extends Controller
             'recentTasks' => $recentTasks,
             'currentUserRole' => $currentUserRole,
             'userLogins' => $userLogins,
+            'currentDomainTab' => $domainTab,
+            'salesTarget' => $salesTarget,
+            'salesAchieved' => $salesAchieved,
         ]);
     }
 }

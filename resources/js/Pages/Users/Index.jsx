@@ -26,7 +26,7 @@ import {
     ChevronRight
 } from 'lucide-react';
 
-export default function UsersIndex({ users = [], roles = [], metrics = {}, currentTab = 'all', search: initialSearch = '' }) {
+export default function UsersIndex({ users = [], roles = [], managers = [], metrics = {}, currentTab = 'all', search: initialSearch = '' }) {
     const { flash, auth } = usePage().props;
     const roleName = (auth.user?.role?.role_name || '').toLowerCase();
     const isAdmin = roleName === 'super_admin' || roleName === 'admin' || auth.user?.id === 1;
@@ -55,6 +55,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
         email: '',
         phone: '',
         role_id: '',
+        manager_id: '',
         password: '',
         status: 'active',
     });
@@ -114,6 +115,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
             email: user.email || '',
             phone: user.phone || '',
             role_id: user.role_id || '',
+            manager_id: user.manager_id || '',
             password: '',
             status: user.status || 'active',
         });
@@ -206,7 +208,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                 {/* 4 KPI SUMMARY CARDS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* 1. Developer Team */}
-                    {isAdmin && (
+                    {(isAdmin || roleName === 'developer_manager') && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">Developer Team</span>
@@ -222,7 +224,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                     )}
 
                     {/* 2. SEO Team */}
-                    {isAdmin && (
+                    {(isAdmin || roleName === 'seo_manager') && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">SEO Team</span>
@@ -238,6 +240,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                     )}
 
                     {/* 3. Sales Team */}
+                    {(isAdmin || roleName === 'sales_manager') && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex items-center justify-between">
                         <div>
                             <span className="text-xs font-semibold text-slate-500">Sales Team</span>
@@ -250,6 +253,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                             <Handshake className="w-6 h-6" />
                         </div>
                     </div>
+                    )}
 
                     {/* 4. Visible Users */}
                     {isAdmin && (
@@ -362,6 +366,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 <tr className="border-b border-slate-100 bg-slate-50/70 text-[0.75rem] font-bold text-slate-600 uppercase tracking-wider">
                                     <th className="py-3.5 px-5">User & Contact</th>
                                     <th className="py-3.5 px-4">Role Assigned</th>
+                                    {isAdmin && <th className="py-3.5 px-4">Manager</th>}
                                     <th className="py-3.5 px-4">Phone</th>
                                     <th className="py-3.5 px-4">Status</th>
                                     <th className="py-3.5 px-4">Registered</th>
@@ -371,7 +376,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {paginatedUsers.length === 0 ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 6 : 5} className="py-12 text-center text-slate-400 font-medium">
+                                        <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-slate-400 font-medium">
                                             No users found in this directory category.
                                         </td>
                                     </tr>
@@ -403,6 +408,13 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                                     <span>{u.role?.display_name || u.role?.role_name || 'No Role'}</span>
                                                 </span>
                                             </td>
+
+                                            {/* Manager */}
+                                            {isAdmin && (
+                                                <td className="py-3.5 px-4 text-slate-700 font-medium text-xs">
+                                                    {u.manager_name ? u.manager_name : <span className="text-slate-400 italic">None</span>}
+                                                </td>
+                                            )}
 
                                             {/* Phone */}
                                             <td className="py-3.5 px-4 text-slate-700 font-medium text-xs">
@@ -526,7 +538,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
             {/* MODAL: ADD NEW USER (Matching Screenshot Exactly) */}
             {createModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-100">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 bg-blue-600 text-white">
                             <div className="flex items-center gap-2.5 font-bold text-base">
@@ -543,7 +555,8 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                         </div>
 
                         {/* Modal Body */}
-                        <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleCreateSubmit} className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Full Name */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -620,6 +633,28 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 )}
                             </div>
 
+                            {/* Manager Dropdown (Optional) */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Manager (Optional)
+                                </label>
+                                <select
+                                    value={createForm.data.manager_id}
+                                    onChange={(e) => createForm.setData('manager_id', e.target.value)}
+                                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                >
+                                    <option value="">-- Select Manager --</option>
+                                    {managers && managers.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name} ({m.role?.display_name})
+                                        </option>
+                                    ))}
+                                </select>
+                                {createForm.errors.manager_id && (
+                                    <p className="text-xs text-rose-500 mt-1">{createForm.errors.manager_id}</p>
+                                )}
+                            </div>
+
                             {/* Temporary Password */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -662,8 +697,10 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 </select>
                             </div>
 
+                            </div>
+
                             {/* Modal Actions */}
-                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-end gap-3 pt-5 mt-6 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setCreateModalOpen(false)}
@@ -688,7 +725,7 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
             {/* MODAL: EDIT USER */}
             {editingUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-100">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
                             <div className="flex items-center gap-2.5 font-bold text-base">
@@ -705,7 +742,8 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                         </div>
 
                         {/* Modal Body */}
-                        <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleEditSubmit} className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Full Name */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -779,6 +817,28 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 )}
                             </div>
 
+                            {/* Manager Dropdown (Optional) */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Manager (Optional)
+                                </label>
+                                <select
+                                    value={editForm.data.manager_id}
+                                    onChange={(e) => editForm.setData('manager_id', e.target.value)}
+                                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                >
+                                    <option value="">-- Select Manager --</option>
+                                    {managers && managers.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name} ({m.role?.display_name})
+                                        </option>
+                                    ))}
+                                </select>
+                                {editForm.errors.manager_id && (
+                                    <p className="text-xs text-rose-500 mt-1">{editForm.errors.manager_id}</p>
+                                )}
+                            </div>
+
                             {/* Password (Optional for Edit) */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -811,8 +871,10 @@ export default function UsersIndex({ users = [], roles = [], metrics = {}, curre
                                 </select>
                             </div>
 
+                            </div>
+
                             {/* Modal Actions */}
-                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-end gap-3 pt-5 mt-6 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setEditingUser(null)}

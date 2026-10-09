@@ -109,18 +109,44 @@ class NotificationController extends Controller
                     'title' => "Domain Alert: {$d->domain_name}",
                     'description' => $isExpired ? "Expired {$daysLeft} days ago" : "Expiring in {$daysLeft} days (" . Carbon::parse($d->domain_expiry_date)->format('M d') . ")",
                     'time' => $isExpired ? 'Expired' : "{$daysLeft}d left",
+                    'isExpired' => $isExpired,
                     'link' => route('domains.index'),
                 ];
             }
         }
 
-        $allNotifications = array_merge($chatAlerts, $ticketAlerts, $domainAlerts);
+        // 4. Pending Projects Alert (Only for Admin/Super Admin)
+        $pendingProjectAlerts = [];
+        if ($user->isAdmin()) {
+            $pendingProjects = DB::table('projects')
+                ->where('status', 'Not Started')
+                ->orderBy('id', 'desc')
+                ->limit(5)
+                ->get();
+
+            foreach ($pendingProjects as $p) {
+                $pendingProjectAlerts[] = [
+                    'id' => 'project_' . $p->id,
+                    'type' => 'project',
+                    'title' => "Pending Project: {$p->project_name}",
+                    'description' => "This project is waiting for action.",
+                    'time' => Carbon::parse($p->created_at)->diffForHumans(),
+                    'link' => route('projects.index', ['status' => 'pending']),
+                ];
+            }
+        }
+
+        $allNotifications = array_merge($chatAlerts, $ticketAlerts);
         $totalNotificationsCount = count($allNotifications);
 
         return response()->json([
             'unreadChatCount' => $unreadChatCount,
             'totalNotificationsCount' => $totalNotificationsCount,
             'notifications' => $allNotifications,
+            'pendingProjectsCount' => count($pendingProjectAlerts),
+            'pendingProjectAlerts' => $pendingProjectAlerts,
+            'domainAlertsCount' => count($domainAlerts),
+            'domainAlerts' => $domainAlerts,
         ]);
     }
 
