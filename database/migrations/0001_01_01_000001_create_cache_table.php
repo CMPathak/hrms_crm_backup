@@ -13,11 +13,10 @@ return new class extends Migration
     {
         if (!Schema::hasTable('cache')) {
             Schema::create('cache', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->mediumText('value');
-            $table->integer('expiration');
-        });
-        });
+                $table->string('key')->primary();
+                $table->mediumText('value');
+                $table->integer('expiration');
+            });
         }
 
         if (!Schema::hasTable('cache_locks')) {
