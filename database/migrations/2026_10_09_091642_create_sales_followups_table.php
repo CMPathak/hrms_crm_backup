@@ -11,16 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('sales_followups', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('client_name');
-            $table->date('followup_date');
-            $table->enum('status', ['Interested', 'Not Interested', 'Call Back', 'Deal Closed', 'No Answer'])->default('Call Back');
-            $table->text('remarks')->nullable();
-            $table->date('next_followup_date')->nullable();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('sales_followups')) {
+            Schema::create('sales_followups', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->string('client_name');
+                $table->date('followup_date');
+                $table->enum('status', ['Interested', 'Not Interested', 'Call Back', 'Deal Closed', 'No Answer'])->default('Call Back');
+                $table->text('remarks')->nullable();
+                $table->date('next_followup_date')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
