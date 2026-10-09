@@ -13,8 +13,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'manager_id')) {
-                $table->unsignedBigInteger('manager_id')->nullable()->after('role_id');
-                $table->foreign('manager_id')->references('id')->on('users')->onDelete('set null');
+                $table->integer('manager_id')->nullable()->after('role_id');
             }
         });
     }

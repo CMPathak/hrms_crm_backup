@@ -14,7 +14,7 @@ return new class extends Migration
         if (!Schema::hasTable('sales_followups')) {
             Schema::create('sales_followups', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->integer('user_id');
                 $table->string('client_name');
                 $table->date('followup_date');
                 $table->enum('status', ['Interested', 'Not Interested', 'Call Back', 'Deal Closed', 'No Answer'])->default('Call Back');
