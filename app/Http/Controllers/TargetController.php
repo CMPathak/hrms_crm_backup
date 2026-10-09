@@ -39,9 +39,11 @@ class TargetController extends Controller
             return str_contains($rName, 'sales') || $u->monthly_target > 0;
         })->values();
 
+        $canEdit = $user->isAdmin() || str_contains($roleName, 'manager');
+
         return Inertia::render('Targets/Index', [
             'salesUsers' => $allSales,
-            'canEdit' => true
+            'canEdit' => $canEdit
         ]);
     }
 
@@ -51,12 +53,16 @@ class TargetController extends Controller
         
         $targetUser = User::findOrFail($id);
         
-        // A manager can only edit if it's their own or their subordinate's
-        // A sales person can only edit their own
-        if (!$user->isAdmin()) {
-            if ($targetUser->id !== $user->id && $targetUser->manager_id !== $user->id) {
-                return response()->json(['error' => 'Unauthorized. You can only edit your assigned users.'], 403);
-            }
+        $roleName = strtolower($user->role?->role_name ?? '');
+        $isManager = str_contains($roleName, 'manager');
+        $isAdmin = $user->isAdmin();
+
+        if (!$isAdmin && !$isManager) {
+            return response()->json(['error' => 'Unauthorized. Only Managers and Admins can update targets.'], 403);
+        }
+
+        if (!$isAdmin && $targetUser->manager_id !== $user->id && $targetUser->id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized. You can only edit your assigned users.'], 403);
         }
 
         $request->validate([

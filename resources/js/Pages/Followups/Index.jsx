@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import HmsLayout from '@/Layouts/HmsLayout';
-import { PhoneCall, Plus, X, Search, ChevronLeft, ChevronRight, Upload, Download } from 'lucide-react';
+import { PhoneCall, Plus, X, Search, ChevronLeft, ChevronRight, Upload, Download, Edit } from 'lucide-react';
 
 export default function Index({ followups = [] }) {
     const { auth } = usePage().props;
@@ -21,10 +21,17 @@ export default function Index({ followups = [] }) {
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         client_name: '',
+        company_name: '',
+        owner_name: '',
+        client_email: '',
+        client_contact: '',
+        client_address: '',
         followup_date: new Date().toISOString().split('T')[0],
         status: 'Call Back',
         remarks: '',
         next_followup_date: '',
+        meeting_date: '',
+        meeting_time: '',
     });
 
     const { post: uploadPost, processing: uploading } = useForm({
@@ -52,19 +59,33 @@ export default function Index({ followups = [] }) {
             setEditingFollowup(followup);
             setData({
                 client_name: followup.client_name || '',
+                company_name: followup.company_name || followup.client_name || '',
+                owner_name: followup.owner_name || '',
+                client_email: followup.client_email || '',
+                client_contact: followup.client_contact || '',
+                client_address: followup.client_address || '',
                 followup_date: followup.followup_date || '',
                 status: followup.status || 'Call Back',
                 remarks: followup.remarks || '',
                 next_followup_date: followup.next_followup_date || '',
+                meeting_date: followup.meeting_date || '',
+                meeting_time: followup.meeting_time || '',
             });
         } else {
             setEditingFollowup(null);
             setData({
                 client_name: '',
+                company_name: '',
+                owner_name: '',
+                client_email: '',
+                client_contact: '',
+                client_address: '',
                 followup_date: new Date().toISOString().split('T')[0],
                 status: 'Call Back',
                 remarks: '',
                 next_followup_date: '',
+                meeting_date: '',
+                meeting_time: '',
             });
         }
         setIsModalOpen(true);
@@ -161,26 +182,30 @@ export default function Index({ followups = [] }) {
                             </button>
                         </div>
                     </div>
-                </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-semibold">
-                                    <th className="px-6 py-4">Date</th>
-                                    {canSeeOthers && <th className="px-6 py-4">Sales Person</th>}
-                                    <th className="px-6 py-4">Client Name</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Remarks</th>
-                                    <th className="px-6 py-4">Next Follow-up</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Date</th>
+                                    {canSeeOthers && <th className="px-6 py-4 whitespace-nowrap">Sales Person</th>}
+                                    <th className="px-6 py-4 whitespace-nowrap">Company Name</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Owner Name</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Contact Number</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Address</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Followups Date</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Meeting Date</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Meeting Time</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Remark</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {currentFollowups.length === 0 ? (
                                     <tr>
-                                        <td colSpan={canSeeOthers ? 7 : 6} className="px-6 py-8 text-center text-slate-500">
+                                        <td colSpan={canSeeOthers ? 9 : 8} className="px-6 py-8 text-center text-slate-500">
                                             No follow-ups found.
                                         </td>
                                     </tr>
@@ -189,35 +214,51 @@ export default function Index({ followups = [] }) {
                                         const isOwn = f.user_id === user.id;
                                         return (
                                             <tr key={f.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4 font-medium text-slate-900">
+                                                <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
                                                     {f.followup_date}
                                                 </td>
                                                 {canSeeOthers && (
-                                                    <td className="px-6 py-4 text-slate-700">
+                                                    <td className="px-6 py-4 text-slate-700 whitespace-nowrap">
                                                         {f.user?.name || 'Unknown'}
                                                     </td>
                                                 )}
-                                                <td className="px-6 py-4 font-bold text-slate-900">
-                                                    {f.client_name}
+                                                <td className="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                                                    {f.company_name || f.client_name}
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusColors[f.status] || 'bg-slate-100 text-slate-700'}`}>
+                                                <td className="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                                                    {f.owner_name || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                                    {f.client_contact || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 text-xs max-w-[150px] truncate whitespace-nowrap" title={f.client_address}>
+                                                    {f.client_address || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                                    {f.next_followup_date || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                                    {f.meeting_date || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                                    {f.meeting_time || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 max-w-xs truncate whitespace-nowrap" title={f.remarks}>
+                                                    {f.remarks || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${statusColors[f.status] || 'bg-slate-100 text-slate-700'}`}>
                                                         {f.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={f.remarks}>
-                                                    {f.remarks || '-'}
-                                                </td>
-                                                <td className="px-6 py-4 text-slate-600">
-                                                    {f.next_followup_date || '-'}
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-6 py-4 text-right whitespace-nowrap">
                                                     {(isOwn || isAdmin) ? (
                                                         <button
                                                             onClick={() => openModal(f)}
-                                                            className="text-indigo-600 hover:text-indigo-900 text-xs font-bold"
+                                                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
                                                         >
-                                                            Edit
+                                                            <Edit className="w-3.5 h-3.5" />
+                                                            Update
                                                         </button>
                                                     ) : (
                                                         <span className="text-slate-400 text-xs">-</span>
@@ -278,8 +319,8 @@ export default function Index({ followups = [] }) {
             {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                             <h3 className="text-lg font-black text-slate-900">
                                 {editingFollowup ? 'Edit Follow-up' : 'Add New Follow-up'}
                             </h3>
@@ -291,47 +332,132 @@ export default function Index({ followups = [] }) {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Date</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={data.followup_date}
-                                        onChange={e => setData('followup_date', e.target.value)}
-                                        className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    />
-                                    {errors.followup_date && <p className="text-red-500 text-xs mt-1">{errors.followup_date}</p>}
+                        <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden min-h-0">
+                            <div className="p-6 overflow-y-auto space-y-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Date</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={data.followup_date}
+                                            onChange={e => setData('followup_date', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.followup_date && <p className="text-red-500 text-xs mt-1">{errors.followup_date}</p>}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Company Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="e.g. ABC Corp"
+                                            value={data.company_name}
+                                            onChange={e => setData('company_name', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.company_name && <p className="text-red-500 text-xs mt-1">{errors.company_name}</p>}
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Client / Lead Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="e.g. Rahul Sharma"
-                                        value={data.client_name}
-                                        onChange={e => setData('client_name', e.target.value)}
-                                        className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    />
-                                    {errors.client_name && <p className="text-red-500 text-xs mt-1">{errors.client_name}</p>}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Owner Name</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. Rahul Sharma"
+                                            value={data.owner_name}
+                                            onChange={e => setData('owner_name', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.owner_name && <p className="text-red-500 text-xs mt-1">{errors.owner_name}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Email</label>
+                                        <input
+                                            type="email"
+                                            placeholder="client@example.com"
+                                            value={data.client_email}
+                                            onChange={e => setData('client_email', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.client_email && <p className="text-red-500 text-xs mt-1">{errors.client_email}</p>}
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Status</label>
-                                    <select
-                                        value={data.status}
-                                        onChange={e => setData('status', e.target.value)}
-                                        className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    >
-                                        <option value="Interested">Interested</option>
-                                        <option value="Call Back">Call Back</option>
-                                        <option value="Not Interested">Not Interested</option>
-                                        <option value="No Answer">No Answer</option>
-                                        <option value="Deal Closed">Deal Closed</option>
-                                    </select>
-                                    {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status}</p>}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Contact No.</label>
+                                        <input
+                                            type="text"
+                                            placeholder="+91 9876543210"
+                                            value={data.client_contact}
+                                            onChange={e => setData('client_contact', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.client_contact && <p className="text-red-500 text-xs mt-1">{errors.client_contact}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Address</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Company address..."
+                                            value={data.client_address}
+                                            onChange={e => setData('client_address', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                        {errors.client_address && <p className="text-red-500 text-xs mt-1">{errors.client_address}</p>}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Status</label>
+                                        <select
+                                            value={data.status}
+                                            onChange={e => setData('status', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        >
+                                            <option value="Interested">Interested</option>
+                                            <option value="Call Back">Call Back</option>
+                                            <option value="Not Interested">Not Interested</option>
+                                            <option value="No Answer">No Answer</option>
+                                            <option value="Deal Closed">Deal Closed</option>
+                                        </select>
+                                        {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status}</p>}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Next Follow-up Date (Optional)</label>
+                                        <input
+                                            type="date"
+                                            value={data.next_followup_date}
+                                            onChange={e => setData('next_followup_date', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Meeting Date</label>
+                                        <input
+                                            type="date"
+                                            value={data.meeting_date}
+                                            onChange={e => setData('meeting_date', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Meeting Time</label>
+                                        <input
+                                            type="time"
+                                            value={data.meeting_time}
+                                            onChange={e => setData('meeting_time', e.target.value)}
+                                            className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
@@ -345,19 +471,9 @@ export default function Index({ followups = [] }) {
                                     ></textarea>
                                     {errors.remarks && <p className="text-red-500 text-xs mt-1">{errors.remarks}</p>}
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Next Follow-up Date (Optional)</label>
-                                    <input
-                                        type="date"
-                                        value={data.next_followup_date}
-                                        onChange={e => setData('next_followup_date', e.target.value)}
-                                        className="w-full border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    />
-                                </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
+                            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
                                 <button
                                     type="button"
                                     onClick={closeModal}

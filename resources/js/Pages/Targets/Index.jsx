@@ -137,7 +137,7 @@ export default function Index({ salesUsers = [], canEdit = false }) {
                                             <td className="px-6 py-4 text-right">
                                                 <button
                                                     onClick={() => startEditing(user)}
-                                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold rounded-lg transition-colors"
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
                                                 >
                                                     <Edit className="w-3.5 h-3.5" />
                                                     Update
